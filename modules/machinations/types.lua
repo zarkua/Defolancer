@@ -30,6 +30,7 @@ types.PLAY_MODE = {
 	STEP = "step",
 	INTERACTIVE = "interactive",
 	BATCH = "batch",
+	AUTOPLAY = "autoplay",
 }
 
 types.GATE_MODE = {
