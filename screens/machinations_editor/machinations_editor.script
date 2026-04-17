@@ -1,0 +1,1968 @@
+local Engine = require("modules.machinations.engine")
+local Autogen = require("modules.machinations.autogen")
+local Batch = require("modules.machinations.batch")
+local Io = require("modules.machinations.io")
+local Regression = require("modules.machinations.regression")
+local types = require("modules.machinations.types")
+
+local MSG_EDITOR_RENDER_META = hash("editor_render_meta")
+local MSG_EDITOR_RENDER_NODES = hash("editor_render_nodes")
+local MSG_EDITOR_RENDER_EDGES = hash("editor_render_edges")
+local MSG_EDITOR_RENDER_CHART = hash("editor_render_chart")
+local MSG_EDITOR_RENDER_BATCH = hash("editor_render_batch")
+local MSG_EDITOR_POINTER = hash("editor_pointer")
+local MSG_EDITOR_COMMAND = hash("editor_command")
+
+local DEFAULT_DIAGRAM_PATH = "source/diagrams/crafting_system.json"
+local LEGACY_SAMPLE_PATH = "source/diagrams/legacy_sample_v405.xml"
+local SNAPSHOT_PATH = "source/diagrams/editor_snapshot.json"
+local BATCH_REPORT_PATH = "source/latest_batch_report.json"
+local AUTOGEN_REPORT_PATH = "source/latest_autogen_report.json"
+
+local AUTOSTEP_INTERVAL = 0.2
+local NODE_WIDTH = 168
+local NODE_HEIGHT = 68
+local LINK_HANDLE_RADIUS = 10
+local DEFAULT_VIEWPORT_W = 1280
+local DEFAULT_VIEWPORT_H = 720
+local PAGE_MARGIN = 18
+local LEFT_PANEL_WIDTH = 72
+local RIGHT_PANEL_WIDTH = 320
+local TOP_BAR_HEIGHT = 58
+local BOTTOM_BAR_HEIGHT = 0
+local ANALYTICS_HEIGHT = 220
+local CONTENT_GAP = 16
+local NODE_CHUNK_SIZE = 6
+local EDGE_CHUNK_SIZE = 8
+
+local TOOL_TO_NODE_TYPE = {
+	pool = types.NODE.POOL,
+	source = types.NODE.SOURCE,
+	gate = types.NODE.GATE,
+	drain = types.NODE.DRAIN,
+	delay = types.NODE.DELAY,
+	register = types.NODE.REGISTER,
+}
+
+local get_payload_dimensions
+local apply_design_diagram
+
+local function copy_table(value)
+	if type(value) ~= "table" then
+		return value
+	end
+
+	local out = {}
+	for key, item in pairs(value) do
+		out[key] = copy_table(item)
+	end
+	return out
+end
+
+local function clamp(value, min_value, max_value)
+	if value < min_value then
+		return min_value
+	end
+	if value > max_value then
+		return max_value
+	end
+	return value
+end
+
+local function get_canvas_rect(viewport_w, viewport_h)
+	viewport_w = viewport_w or DEFAULT_VIEWPORT_W
+	viewport_h = viewport_h or DEFAULT_VIEWPORT_H
+
+	local left = PAGE_MARGIN + LEFT_PANEL_WIDTH + CONTENT_GAP
+	local right = viewport_w - PAGE_MARGIN - RIGHT_PANEL_WIDTH - CONTENT_GAP
+	local bottom = PAGE_MARGIN + BOTTOM_BAR_HEIGHT + ANALYTICS_HEIGHT + CONTENT_GAP
+	local top = viewport_h - PAGE_MARGIN - TOP_BAR_HEIGHT - CONTENT_GAP
+
+	if right - left < 220 then
+		local center_x = viewport_w * 0.5
+		left = center_x - 110
+		right = center_x + 110
+	end
+	if top - bottom < 220 then
+		local center_y = viewport_h * 0.5
+		bottom = center_y - 110
+		top = center_y + 110
+	end
+
+	return left, right, bottom, top
+end
+
+local function is_inside_canvas(screen_x, screen_y, viewport_w, viewport_h)
+	local left, right, bottom, top = get_canvas_rect(viewport_w, viewport_h)
+	return screen_x >= left and screen_x <= right and screen_y >= bottom and screen_y <= top
+end
+
+local function join_lines(lines)
+	if #lines == 0 then
+		return ""
+	end
+	return table.concat(lines, "\n")
+end
+
+local function file_exists(path)
+	local file = io.open(path, "rb")
+	if file then
+		file:close()
+		return true
+	end
+
+	if type(sys) == "table" and type(sys.load_resource) == "function" then
+		local resource_path = path
+		if string.sub(resource_path, 1, 1) ~= "/" then
+			resource_path = "/" .. resource_path
+		end
+		local data = sys.load_resource(resource_path)
+		return data ~= nil
+	end
+
+	return false
+end
+
+local function is_html5_runtime()
+	local sys_info = sys.get_sys_info()
+	return sys_info ~= nil and sys_info.system_name == "HTML5"
+end
+
+local function load_diagram_from_path(path)
+	local diagram, err = Io.decode_diagram_file(path)
+	if not diagram then
+		return nil, err
+	end
+	return diagram
+end
+
+local function load_fallback_diagram()
+	if file_exists(DEFAULT_DIAGRAM_PATH) then
+		local diagram = load_diagram_from_path(DEFAULT_DIAGRAM_PATH)
+		if diagram ~= nil then
+			return copy_table(diagram)
+		end
+	end
+
+	return {
+		name = "Machinations",
+		author = "Joris Dormans",
+		play_mode = types.PLAY_MODE.HEADLESS,
+		distribution_mode = "fixed speed",
+		interval = 1,
+		dice = "D6",
+		skill = "",
+		multiplayer = "",
+		strategy = "",
+		width = 600,
+		height = 560,
+		nodes = {},
+		connections = {},
+		["end"] = {
+			stop_when_idle = true,
+			max_ticks = 1000,
+		},
+		editor_positions = {},
+	}
+end
+
+local function extract_editor_positions(diagram)
+	local positions = {}
+	if type(diagram.editor_positions) ~= "table" then
+		return positions
+	end
+
+	for node_id, pos in pairs(diagram.editor_positions) do
+		if type(pos) == "table" and type(pos.x) == "number" and type(pos.y) == "number" then
+			positions[node_id] = {
+				x = pos.x,
+				y = pos.y,
+			}
+		end
+	end
+
+	return positions
+end
+
+local function apply_auto_positions(diagram, positions)
+	local row_size = 4
+	local x_step = 176
+	local y_step = 126
+	for index, node in ipairs(diagram.nodes or {}) do
+		if positions[node.id] == nil then
+			local row = math.floor((index - 1) / row_size)
+			local col = (index - 1) % row_size
+			local first_in_row = row * row_size + 1
+			local remaining = #(diagram.nodes or {}) - first_in_row + 1
+			local count_in_row = math.min(row_size, math.max(remaining, 1))
+			local start_x = -((count_in_row - 1) * x_step) * 0.5
+			positions[node.id] = {
+				x = start_x + col * x_step,
+				y = 120 - row * y_step,
+			}
+		end
+	end
+end
+
+local function node_id_exists(diagram, node_id)
+	for _, node in ipairs(diagram.nodes or {}) do
+		if node.id == node_id then
+			return true
+		end
+	end
+	return false
+end
+
+local function connection_id_exists(diagram, connection_id)
+	for _, connection in ipairs(diagram.connections or {}) do
+		if connection.id == connection_id then
+			return true
+		end
+	end
+	return false
+end
+
+local function find_node_index(diagram, node_id)
+	for index, node in ipairs(diagram.nodes or {}) do
+		if node.id == node_id then
+			return index
+		end
+	end
+	return nil
+end
+
+local function remove_connections_for_node(diagram, node_id)
+	for index = #diagram.connections, 1, -1 do
+		local connection = diagram.connections[index]
+		if connection.from == node_id or connection.to == node_id then
+			table.remove(diagram.connections, index)
+		end
+	end
+end
+
+local function setup_serials(self)
+	self.next_node_serial = 1
+	self.next_connection_serial = 1
+
+	for _, node in ipairs(self.design_diagram.nodes or {}) do
+		local suffix = tonumber(string.match(node.id or "", "_(%d+)$"))
+		if suffix ~= nil and suffix >= self.next_node_serial then
+			self.next_node_serial = suffix + 1
+		end
+	end
+
+	for _, connection in ipairs(self.design_diagram.connections or {}) do
+		local suffix = tonumber(string.match(connection.id or "", "_(%d+)$"))
+		if suffix ~= nil and suffix >= self.next_connection_serial then
+			self.next_connection_serial = suffix + 1
+		end
+	end
+end
+
+local function restart_runtime(self)
+	local state, err = Engine.init(self.design_diagram, {
+		seed = self.seed,
+		play_mode = types.PLAY_MODE.STEP,
+	})
+	if not state then
+		self.runtime_state = nil
+		self.status_line = "Runtime init error: " .. tostring(err)
+		self.autoplay = false
+		return false
+	end
+
+	self.runtime_state = state
+	self.last_step_summary = nil
+	self.last_batch_chart_points = nil
+	return true
+end
+
+local function get_runtime_node(self, node_id)
+	if not self.runtime_state then
+		return nil
+	end
+	return self.runtime_state.nodes[node_id]
+end
+
+local function screen_to_world(self, screen_x, screen_y, viewport_w, viewport_h)
+	viewport_w = viewport_w or self.viewport_w
+	viewport_h = viewport_h or self.viewport_h
+	local left, right, bottom, top = get_canvas_rect(viewport_w, viewport_h)
+	local center_x = (left + right) * 0.5
+	local center_y = (bottom + top) * 0.5
+	local world_x = (screen_x - center_x) / self.camera_zoom + self.camera_x
+	local world_y = (screen_y - center_y) / self.camera_zoom + self.camera_y
+	return world_x, world_y
+end
+
+local function world_to_screen(self, world_x, world_y, viewport_w, viewport_h)
+	viewport_w = viewport_w or self.viewport_w
+	viewport_h = viewport_h or self.viewport_h
+	local left, right, bottom, top = get_canvas_rect(viewport_w, viewport_h)
+	local center_x = (left + right) * 0.5
+	local center_y = (bottom + top) * 0.5
+	local screen_x = (world_x - self.camera_x) * self.camera_zoom + center_x
+	local screen_y = (world_y - self.camera_y) * self.camera_zoom + center_y
+	return screen_x, screen_y
+end
+
+local function find_node_at(self, world_x, world_y)
+	for index = #self.design_diagram.nodes, 1, -1 do
+		local node = self.design_diagram.nodes[index]
+		local pos = self.editor_positions[node.id]
+		if pos ~= nil then
+			local width, height = get_payload_dimensions(node.type)
+			local half_w = width * 0.5
+			local half_h = height * 0.5
+			local dx = math.abs(world_x - pos.x)
+			local dy = math.abs(world_y - pos.y)
+			if dx <= half_w and dy <= half_h then
+				return node.id
+			end
+		end
+	end
+
+	return nil
+end
+
+local function find_handle_at(self, screen_x, screen_y, viewport_w, viewport_h)
+	local box_scale = clamp(self.camera_zoom * 0.85, 0.7, 1.2)
+	local radius = LINK_HANDLE_RADIUS * box_scale
+
+	for index = #self.design_diagram.nodes, 1, -1 do
+		local node = self.design_diagram.nodes[index]
+		local pos = self.editor_positions[node.id]
+		if pos ~= nil then
+			local width = get_payload_dimensions(node.type)
+			local node_screen_x, node_screen_y = world_to_screen(self, pos.x, pos.y, viewport_w, viewport_h)
+			local handle_x = node_screen_x + width * 0.5 + 10
+			local handle_y = node_screen_y
+			local dx = screen_x - handle_x
+			local dy = screen_y - handle_y
+			if (dx * dx + dy * dy) <= (radius * radius) then
+				return node.id
+			end
+		end
+	end
+	return nil
+end
+
+local function get_design_node(diagram, node_id)
+	for _, node in ipairs(diagram.nodes or {}) do
+		if node.id == node_id then
+			return node
+		end
+	end
+	return nil
+end
+
+local function get_node_icon(node_type)
+	local icons = {
+		source = "/\\",
+		pool = "O",
+		drain = "\\/",
+		converter = ">|",
+		trader = "><",
+		gate = "<>",
+		register = "8",
+		delay = "[]",
+		queue = "[]",
+		end_condition = "!",
+		legacy_chart = "CH",
+		legacy_textlabel = "T",
+		legacy_groupbox = "GB",
+		legacy_artificialplayer = "AP",
+		legacy_endcondition = "!",
+	}
+	return icons[node_type] or "N"
+end
+
+local function get_node_shape(node_type)
+	local shapes = {
+		source = "source",
+		pool = "pool",
+		drain = "drain",
+		converter = "converter",
+		trader = "trader",
+		gate = "gate",
+		register = "register",
+		delay = "delay",
+		queue = "delay",
+		end_condition = "endcondition",
+		legacy_chart = "chart",
+		legacy_textlabel = "textlabel",
+		legacy_groupbox = "groupbox",
+		legacy_artificialplayer = "artificialplayer",
+		legacy_endcondition = "endcondition",
+	}
+	return shapes[node_type] or "rect"
+end
+
+local function get_legacy_visual_value(visual_node)
+	local symbol = tostring(visual_node.symbol or "")
+	if symbol == "Chart" then
+		return string.format("X:%s  Y:%s", tostring(visual_node.scale_x or "-"), tostring(visual_node.scale_y or "-"))
+	end
+	if symbol == "ArtificialPlayer" then
+		return string.format("APT:%s", tostring(visual_node.actions_per_turn or 1))
+	end
+	if symbol == "EndCondition" then
+		return "end"
+	end
+	if symbol == "GroupBox" or symbol == "TextLabel" then
+		return ""
+	end
+	return symbol
+end
+
+get_payload_dimensions = function(node_type, visual_node)
+	if visual_node ~= nil then
+		local symbol = tostring(visual_node.symbol or "")
+		if symbol == "TextLabel" then
+			return math.max((#tostring(visual_node.caption or "") * 8) + 32, 84), 28
+		end
+		if symbol == "GroupBox" or symbol == "Chart" then
+			return math.max(tonumber(visual_node.width) or 132, 96), math.max(tonumber(visual_node.height) or 72, 56)
+		end
+		if symbol == "ArtificialPlayer" or symbol == "EndCondition" then
+			return 90, 56
+		end
+		return math.max(tonumber(visual_node.width) or 132, 72), math.max(tonumber(visual_node.height) or 72, 42)
+	end
+	if node_type == types.NODE.SOURCE or node_type == types.NODE.DRAIN or node_type == types.NODE.GATE then
+		return 94, 72
+	end
+	if node_type == types.NODE.REGISTER then
+		return 92, 64
+	end
+	if node_type == types.NODE.DELAY or node_type == types.NODE.QUEUE then
+		return 116, 54
+	end
+	if node_type == types.NODE.END_CONDITION then
+		return 90, 56
+	end
+	return 156, 64
+end
+
+local function resolve_visual_anchor_position(visual_node, width, height)
+	local x = tonumber(visual_node.x) or 0
+	local y = tonumber(visual_node.y) or 0
+	local symbol = tostring(visual_node.symbol or "")
+	if symbol == "Chart" or symbol == "GroupBox" then
+		x = x + width * 0.5
+		y = y - height * 0.5
+	end
+	return x, y
+end
+
+local function get_node_value_text(node, runtime_node)
+	if node.type == types.NODE.REGISTER then
+		local value = runtime_node and runtime_node.register_value or node.register_value or 0
+		return string.format("v:%.2f", tonumber(value) or 0)
+	end
+	if node.type == types.NODE.DELAY or node.type == types.NODE.QUEUE then
+		return string.format("t:%d", math.floor(tonumber(node.delay_ticks) or 1))
+	end
+	local value = runtime_node and runtime_node.resources or node.initial_resources or 0
+	return string.format("r:%d", math.floor(tonumber(value) or 0))
+end
+
+local function reverse_points(points)
+	local reversed = {}
+	for index = #points, 1, -1 do
+		reversed[#reversed + 1] = {
+			x = points[index].x,
+			y = points[index].y,
+		}
+	end
+	return reversed
+end
+
+local function build_edge_points(from_pos, to_pos, legacy_points, flow_mode)
+	local points = {}
+	if from_pos ~= nil then
+		points[#points + 1] = { x = from_pos.x, y = from_pos.y }
+	end
+	for _, point in ipairs(legacy_points or {}) do
+		points[#points + 1] = {
+			x = tonumber(point.x) or 0,
+			y = tonumber(point.y) or 0,
+		}
+	end
+	if to_pos ~= nil then
+		points[#points + 1] = { x = to_pos.x, y = to_pos.y }
+	end
+	if flow_mode == types.FLOW_MODE.PULL then
+		return reverse_points(points)
+	end
+	return points
+end
+
+local function build_position_lookup(self)
+	local lookup = {}
+	for node_id, pos in pairs(self.editor_positions or {}) do
+		lookup[node_id] = {
+			x = tonumber(pos.x) or 0,
+			y = tonumber(pos.y) or 0,
+		}
+	end
+	for _, visual_node in ipairs(self.design_diagram.legacy_visual_nodes or {}) do
+		local width, height = get_payload_dimensions(nil, visual_node)
+		local x, y = resolve_visual_anchor_position(visual_node, width, height)
+		lookup[visual_node.id] = {
+			x = x,
+			y = y,
+		}
+	end
+	return lookup
+end
+
+local function compose_hud_text(self)
+	local tick = 0
+	if self.runtime_state ~= nil then
+		tick = self.runtime_state.tick
+	end
+	return string.format(
+		"Tick %d | Zoom %.2f | Tool %s",
+		tick,
+		self.camera_zoom,
+		self.active_tool or "select"
+	)
+end
+
+local function compose_status_text(self)
+	local selected = self.selected_node_id or "-"
+	local link = self.link_from_node_id or "-"
+	local status_line = self.status_line or ""
+	local selected_node = get_design_node(self.design_diagram, selected)
+	local node_type = "-"
+	local trigger_mode = "-"
+	local rate = 0
+	local capacity = 0
+	if selected_node ~= nil then
+		node_type = selected_node.type or "-"
+		trigger_mode = selected_node.trigger_mode or "-"
+		rate = tonumber(selected_node.rate) or 0
+		capacity = tonumber(selected_node.capacity) or -1
+	end
+
+	local runtime_node = get_runtime_node(self, selected)
+	local resources = 0
+	if runtime_node ~= nil then
+		resources = tonumber(runtime_node.resources) or 0
+	end
+
+	local graph_name = self.design_diagram.name or "Machinations"
+	local graph_author = self.design_diagram.author or "-"
+	local time_mode = "asynchronous"
+	if self.design_diagram.play_mode == types.PLAY_MODE.INTERACTIVE then
+		time_mode = "turn-based"
+	end
+
+	local lines = {
+		string.format("Name          %s", graph_name),
+		string.format("Author        %s", graph_author),
+		string.format("Time Mode     %s", time_mode),
+		string.format("Interval      %.1f", tonumber(self.design_diagram.interval) or 1),
+		string.format("Distribution  %s", self.design_diagram.distribution_mode or "fixed speed"),
+		string.format("Color Coding  %s", self.design_diagram.color_coding and "on" or "off"),
+		string.format("Dice          %s", self.design_diagram.dice or "D6"),
+		string.format("Skill         %s", self.design_diagram.skill or "-"),
+		string.format("Multiplayer   %s", self.design_diagram.multiplayer or "-"),
+		string.format("Strategy      %s", self.design_diagram.strategy or "-"),
+		string.format("Width         %d", math.floor(tonumber(self.design_diagram.width) or 600)),
+		string.format("Height        %d", math.floor(tonumber(self.design_diagram.height) or 560)),
+	}
+
+	if selected_node ~= nil then
+		table.insert(lines, 1, string.format("Link          %s", link))
+		table.insert(lines, 1, string.format("Resources     %d", math.floor(resources)))
+		table.insert(lines, 1, string.format("Capacity      %d", math.floor(capacity)))
+		table.insert(lines, 1, string.format("Rate          %d", math.floor(rate)))
+		table.insert(lines, 1, string.format("Trigger       %s", trigger_mode))
+		table.insert(lines, 1, string.format("Selection     %s", selected))
+		table.insert(lines, 2, string.format("Node Type     %s", node_type))
+	end
+
+	if status_line ~= "" then
+		if #status_line > 88 then
+			status_line = string.sub(status_line, 1, 85) .. "..."
+		end
+		lines[#lines + 1] = ""
+		lines[#lines + 1] = "Status"
+		lines[#lines + 1] = status_line
+	end
+
+	return table.concat(lines, "\n")
+end
+
+local function build_inspector_payload(self)
+	local payload = {
+		title = "Machinations [Graph]",
+		fields = {},
+		status_line = self.status_line or "",
+	}
+
+	local function push(label, value)
+		payload.fields[#payload.fields + 1] = {
+			label = label,
+			value = tostring(value),
+		}
+	end
+
+	local selected_node = get_design_node(self.design_diagram, self.selected_node_id)
+	if selected_node ~= nil then
+		local runtime_node = get_runtime_node(self, selected_node.id)
+		payload.title = "Machinations [" .. selected_node.id .. "]"
+		push("Name", selected_node.id)
+		push("Node Type", selected_node.type or "-")
+		push("Trigger", selected_node.trigger_mode or "-")
+		push("Rate", math.floor(tonumber(selected_node.rate) or 0))
+		push("Capacity", math.floor(tonumber(selected_node.capacity) or -1))
+		push("Resources", math.floor(tonumber(runtime_node and runtime_node.resources or selected_node.initial_resources or 0)))
+		push("Link", self.link_from_node_id or "-")
+		if type(selected_node.data) == "table" then
+			if selected_node.data.legacy_caption and selected_node.data.legacy_caption ~= "" then
+				push("Caption", selected_node.data.legacy_caption)
+			end
+			if selected_node.data.legacy_activation_mode and selected_node.data.legacy_activation_mode ~= "" then
+				push("Activation", selected_node.data.legacy_activation_mode)
+			end
+			if selected_node.data.legacy_pull_mode and selected_node.data.legacy_pull_mode ~= "" then
+				push("Pull Mode", selected_node.data.legacy_pull_mode)
+			end
+			if selected_node.data.legacy_actions ~= nil then
+				push("Actions", selected_node.data.legacy_actions)
+			end
+			if selected_node.data.legacy_gate_type and selected_node.data.legacy_gate_type ~= "" then
+				push("Gate Type", selected_node.data.legacy_gate_type)
+			end
+			if selected_node.data.legacy_delay_type and selected_node.data.legacy_delay_type ~= "" then
+				push("Delay Type", selected_node.data.legacy_delay_type)
+			end
+			if selected_node.data.legacy_display_capacity ~= nil then
+				push("Display Cap.", selected_node.data.legacy_display_capacity)
+			end
+			if selected_node.data.legacy_min ~= nil then
+				push("Min", selected_node.data.legacy_min)
+			end
+			if selected_node.data.legacy_max ~= nil then
+				push("Max", selected_node.data.legacy_max)
+			end
+			if selected_node.data.legacy_step ~= nil then
+				push("Step", selected_node.data.legacy_step)
+			end
+			if selected_node.data.register_expression and selected_node.data.register_expression ~= "" then
+				push("Formula", selected_node.data.register_expression)
+			end
+			if selected_node.data.legacy_resource_color and selected_node.data.legacy_resource_color ~= "" then
+				push("Res Color", selected_node.data.legacy_resource_color)
+			end
+		end
+		return payload
+	end
+
+	push("Name", self.design_diagram.name or "Machinations")
+	push("Author", self.design_diagram.author or "-")
+	local legacy_import = self.design_diagram.legacy_import
+	if self.design_diagram.play_mode == types.PLAY_MODE.INTERACTIVE then
+		push("Time Mode", "turn-based")
+	else
+		push("Time Mode", "asynchronous")
+	end
+	push("Interval", string.format("%.1f", tonumber(self.design_diagram.interval) or 1))
+	push("Distribution", self.design_diagram.distribution_mode or "fixed speed")
+	local color_coding = self.design_diagram.color_coding
+	if color_coding == nil and type(legacy_import) == "table" then
+		color_coding = legacy_import.color_coding == 1
+	end
+	push("Color Coding", color_coding and "on" or "off")
+	push("Dice", self.design_diagram.dice or "D6")
+	push("Skill", self.design_diagram.skill or "")
+	push("Multiplayer", self.design_diagram.multiplayer or "")
+	push("Strategy", self.design_diagram.strategy or "")
+	push("Width", math.floor(tonumber(self.design_diagram.width) or 600))
+	push("Height", math.floor(tonumber(self.design_diagram.height) or 560))
+	if type(legacy_import) == "table" then
+		push("Legacy Ver", legacy_import.source_version or "-")
+		push("Legacy Upg", legacy_import.upgraded_version or "-")
+		push("Speed", legacy_import.speed or "-")
+		push("Runs", legacy_import.number_of_runs or "-")
+		push("Visible Runs", legacy_import.visible_runs or "-")
+		push("Warnings", #(legacy_import.warnings or {}))
+	end
+	return payload
+end
+
+local function build_nodes_payload(self)
+	local nodes = {}
+	for _, node in ipairs(self.design_diagram.nodes or {}) do
+		local pos = self.editor_positions[node.id] or { x = 0, y = 0 }
+		local runtime_node = get_runtime_node(self, node.id)
+		local width, height = get_payload_dimensions(node.type)
+		local resources = node.initial_resources or 0
+		local register_value = node.register_value or 0
+		local enabled = node.enabled ~= false
+
+		if runtime_node ~= nil then
+			resources = runtime_node.resources
+			register_value = runtime_node.register_value
+			enabled = runtime_node.enabled
+		end
+
+		nodes[#nodes + 1] = {
+			id = node.id,
+			title = (node.data and node.data.legacy_caption) or node.id,
+			icon = get_node_icon(node.type),
+			shape = get_node_shape(node.type),
+			node_type = node.type,
+			x = pos.x,
+			y = pos.y,
+			resources = resources,
+			register = register_value,
+			width = width,
+			height = height,
+			value_text = get_node_value_text(node, runtime_node),
+			enabled = enabled,
+			selected = self.selected_node_id == node.id,
+			link_source = self.link_from_node_id == node.id,
+		}
+	end
+
+	for _, visual_node in ipairs(self.design_diagram.legacy_visual_nodes or {}) do
+		local caption = tostring(visual_node.caption or "")
+		local title = caption ~= "" and caption or visual_node.symbol or visual_node.id
+		local width, height = get_payload_dimensions(nil, visual_node)
+		local x, y = resolve_visual_anchor_position(visual_node, width, height)
+		nodes[#nodes + 1] = {
+			id = visual_node.id,
+			title = title,
+			icon = get_node_icon("legacy_" .. string.lower(visual_node.symbol or "node")),
+			shape = get_node_shape("legacy_" .. string.lower(visual_node.symbol or "node")),
+			node_type = "legacy_" .. string.lower(visual_node.symbol or "node"),
+			x = x,
+			y = y,
+			width = width,
+			height = height,
+			resources = 0,
+			register = 0,
+			value_text = get_legacy_visual_value(visual_node),
+			enabled = true,
+			selected = false,
+			link_source = false,
+			visual_only = true,
+			legacy_symbol = visual_node.symbol,
+		}
+	end
+	return nodes
+end
+
+local function build_chart_payload(self)
+	local payload = {
+		node_id = nil,
+		points = {},
+		min = 0,
+		max = 0,
+	}
+	if self.runtime_state == nil then
+		if type(self.last_batch_chart_points) == "table" and #self.last_batch_chart_points >= 2 then
+			payload.node_id = "batch_prediction"
+			payload.points = copy_table(self.last_batch_chart_points)
+			payload.min = payload.points[1] or 0
+			payload.max = payload.points[#payload.points] or payload.min
+		end
+		return payload
+	end
+
+	local focus_node_id = self.selected_node_id or self.runtime_state.node_order[1]
+	if focus_node_id == nil then
+		return payload
+	end
+	payload.node_id = focus_node_id
+
+	local node_history = self.runtime_state.metrics.node_history[focus_node_id]
+	if node_history == nil then
+		return payload
+	end
+
+	local source_points = node_history.resources or {}
+	local start_index = math.max(#source_points - 5, 1)
+	local min_value = nil
+	local max_value = nil
+	for index = start_index, #source_points do
+		local value = tonumber(source_points[index]) or 0
+		payload.points[#payload.points + 1] = value
+		if min_value == nil or value < min_value then
+			min_value = value
+		end
+		if max_value == nil or value > max_value then
+			max_value = value
+		end
+	end
+
+	payload.min = min_value or 0
+	payload.max = max_value or 0
+	if #payload.points < 2 and type(self.last_batch_chart_points) == "table" and #self.last_batch_chart_points >= 2 then
+		payload.node_id = "batch_prediction"
+		payload.points = copy_table(self.last_batch_chart_points)
+		payload.min = payload.points[1] or 0
+		payload.max = payload.points[#payload.points] or payload.min
+	end
+	return payload
+end
+
+local function build_edges_payload(self)
+	local edges = {}
+	local positions = build_position_lookup(self)
+	for _, connection in ipairs(self.design_diagram.connections or {}) do
+		local from_pos = positions[connection.from]
+		local to_pos = positions[connection.to]
+		if from_pos ~= nil and to_pos ~= nil then
+			local points = build_edge_points(from_pos, to_pos, connection.data and connection.data.legacy_points or nil, connection.flow_mode)
+			edges[#edges + 1] = {
+				id = connection.id,
+				connection_type = connection.type,
+				flow_mode = connection.flow_mode or types.FLOW_MODE.PUSH,
+				points = points,
+				label = connection.data and connection.data.legacy_label or connection.amount_expression,
+			}
+		end
+	end
+	for _, connection in ipairs(self.design_diagram.legacy_visual_connections or {}) do
+		local points = {}
+		if connection.floating and type(connection.points) == "table" and #connection.points >= 2 then
+			points = reverse_points(reverse_points(connection.points))
+		else
+			local from_pos = connection.from and positions[connection.from] or nil
+			local to_pos = connection.to and positions[connection.to] or nil
+			points = build_edge_points(from_pos, to_pos, connection.points, types.FLOW_MODE.PUSH)
+		end
+		if #points >= 2 then
+			edges[#edges + 1] = {
+				id = connection.id,
+				connection_type = string.find(string.lower(tostring(connection.type or "")), "state", 1, true) and types.CONNECTION.STATE or types.CONNECTION.RESOURCE,
+				flow_mode = types.FLOW_MODE.PUSH,
+				points = points,
+				label = connection.label,
+				visual_only = true,
+			}
+		end
+	end
+	return edges
+end
+
+local function build_distribution_payload(self)
+	if self.last_batch_distribution ~= nil then
+		return copy_table(self.last_batch_distribution)
+	end
+	return {
+		bins = {},
+	}
+end
+
+local function build_accuracy_text(self)
+	if type(self.last_accuracy_text) == "string" and self.last_accuracy_text ~= "" then
+		return self.last_accuracy_text
+	end
+	return "Run batch to compute accuracy indicator."
+end
+
+local function post_chunked_items(message_id, items, chunk_size)
+	local total = #items
+	if total == 0 then
+		msg.post("#gui", message_id, {
+			reset = true,
+			done = true,
+			items = {},
+		})
+		return
+	end
+
+	local index = 1
+	while index <= total do
+		local chunk_end = math.min(index + chunk_size - 1, total)
+		local chunk = {}
+		for item_index = index, chunk_end do
+			chunk[#chunk + 1] = items[item_index]
+		end
+
+		msg.post("#gui", message_id, {
+			reset = index == 1,
+			done = chunk_end == total,
+			items = chunk,
+		})
+
+		index = chunk_end + 1
+	end
+end
+
+local function send_render(self)
+	if not self.render_dirty then
+		return
+	end
+
+	msg.post("#gui", MSG_EDITOR_RENDER_META, {
+		camera_x = self.camera_x,
+		camera_y = self.camera_y,
+		camera_zoom = self.camera_zoom,
+		hud = compose_hud_text(self),
+		status = self.status_line or "",
+		inspector = build_inspector_payload(self),
+		active_tool = self.active_tool or "select",
+		autoplay = self.autoplay == true,
+	})
+
+	post_chunked_items(MSG_EDITOR_RENDER_NODES, build_nodes_payload(self), NODE_CHUNK_SIZE)
+	post_chunked_items(MSG_EDITOR_RENDER_EDGES, build_edges_payload(self), EDGE_CHUNK_SIZE)
+
+	msg.post("#gui", MSG_EDITOR_RENDER_CHART, {
+		chart = build_chart_payload(self),
+	})
+
+	msg.post("#gui", MSG_EDITOR_RENDER_BATCH, {
+		distribution = build_distribution_payload(self),
+		accuracy_text = build_accuracy_text(self),
+	})
+
+	self.render_dirty = false
+end
+
+local function step_runtime(self)
+	if self.runtime_state == nil then
+		self.status_line = "No runtime state to step."
+		self.autoplay = false
+		self.render_dirty = true
+		return
+	end
+
+	local _, summary = Engine.step(self.runtime_state)
+	self.last_step_summary = summary
+	self.status_line = "Stepped simulation."
+	if summary.ended then
+		self.autoplay = false
+		self.status_line = "Simulation ended: " .. tostring(summary.reason)
+	end
+	self.render_dirty = true
+end
+
+local function save_batch_report(report)
+	local json_text, err = Io.encode_batch_report_json(report, true)
+	if not json_text then
+		return nil, err
+	end
+
+	local file, open_err = io.open(BATCH_REPORT_PATH, "wb")
+	if not file then
+		return nil, "open failed: " .. tostring(open_err)
+	end
+
+	local ok, write_err = file:write(json_text)
+	file:close()
+	if not ok then
+		return nil, "write failed: " .. tostring(write_err)
+	end
+
+	return true
+end
+
+local function clear_analytics_state(self)
+	self.last_batch_summary = ""
+	self.last_batch_distribution = nil
+	self.last_accuracy_text = nil
+	self.last_batch_chart_points = nil
+	self.last_autogen_report = nil
+end
+
+local function build_autogen_case_path(case_id)
+	return string.format("source/diagrams/autogen_%s.json", tostring(case_id or "case"))
+end
+
+local function build_generated_case_distribution(diagram)
+	local node_count = #(diagram.nodes or {})
+	local resource_count = 0
+	local state_count = 0
+
+	for _, connection in ipairs(diagram.connections or {}) do
+		if connection.type == types.CONNECTION.STATE then
+			state_count = state_count + 1
+		else
+			resource_count = resource_count + 1
+		end
+	end
+
+	return {
+		bins = {
+			{ label = "Nodes", count = node_count },
+			{ label = "Res", count = resource_count },
+			{ label = "State", count = state_count },
+		},
+	}
+end
+
+local function build_generated_case_chart_points(diagram)
+	local node_count = #(diagram.nodes or {})
+	local connection_count = #(diagram.connections or {})
+	local max_ticks = tonumber((((diagram["end"] or {}).max_ticks))) or 0
+	return {
+		0,
+		node_count,
+		connection_count,
+		max_ticks,
+	}
+end
+
+local function build_generated_case_accuracy_text(case, index, total, diagram_path, save_err)
+	local base = string.format(
+		"Case %d/%d: %s\n%s",
+		index,
+		total,
+		tostring(case.name or case.id or "Autogen"),
+		tostring(case.description or "Auto-generated diagram")
+	)
+	if diagram_path == nil and save_err == nil then
+		return base .. "\nBrowser preview only."
+	end
+	if save_err ~= nil then
+		return base .. "\nSave failed: " .. tostring(save_err)
+	end
+	return base .. "\nSaved: " .. tostring(diagram_path)
+end
+
+local function find_first_failed_case(report)
+	for _, case_result in ipairs(report.cases or {}) do
+		if not case_result.ok then
+			return case_result
+		end
+	end
+	return nil
+end
+
+local function build_autogen_distribution(report)
+	return {
+		bins = {
+			{ label = "Pass", count = report.passed or 0 },
+			{ label = "Fail", count = report.failed or 0 },
+		},
+	}
+end
+
+local function build_autogen_chart_points(report)
+	local points = {}
+	for _, case_result in ipairs(report.cases or {}) do
+		points[#points + 1] = tonumber(case_result.ticks or 0) or 0
+	end
+	if #points < 2 then
+		points[#points + 1] = report.total or 0
+	end
+	return points
+end
+
+local function build_autogen_accuracy_text(report)
+	local first_failure = find_first_failed_case(report)
+	local report_suffix = tostring(report.report_path or AUTOGEN_REPORT_PATH)
+	if report.failed == 0 then
+		return string.format(
+			"Generated %d cases.\nAll passed.\nReport: %s",
+			report.total or 0,
+			report_suffix
+		)
+	end
+	return string.format(
+		"Generated %d cases.\nFailed: %d.\nFirst failure: %s.\nReport: %s",
+		report.total or 0,
+		report.failed or 0,
+		tostring(first_failure and (first_failure.id or first_failure.name or first_failure.message) or "unknown"),
+		report_suffix
+	)
+end
+
+local function run_batch_simulation(self)
+	local report, err = Batch.run(self.design_diagram, {
+		runs = 200,
+		max_ticks = 300,
+		seed = self.seed,
+	})
+	if not report then
+		self.status_line = "Batch failed: " .. tostring(err)
+		self.render_dirty = true
+		return
+	end
+	self.last_batch_distribution = nil
+	self.last_accuracy_text = nil
+	self.last_batch_chart_points = nil
+
+	local top_reason = "-"
+	local top_count = 0
+	for reason, count in pairs(report.aggregates.end_reasons or {}) do
+		if count > top_count then
+			top_reason = reason
+			top_count = count
+		end
+	end
+
+	local mean_ticks = 0
+	local ci_low = 0
+	local ci_high = 0
+	if report.aggregates ~= nil and report.aggregates.ticks ~= nil then
+		mean_ticks = report.aggregates.ticks.mean or 0
+		ci_low = report.aggregates.ticks.ci95_low or mean_ticks
+		ci_high = report.aggregates.ticks.ci95_high or mean_ticks
+	end
+
+	local top_share = 0
+	if report.aggregates ~= nil and report.aggregates.end_reason_share ~= nil then
+		top_share = report.aggregates.end_reason_share[top_reason] or 0
+	end
+
+	self.last_batch_summary = string.format(
+		"Batch runs=%d mean=%.1f ci=[%.1f..%.1f]",
+		#report.runs,
+		mean_ticks,
+		ci_low,
+		ci_high
+	)
+
+	local bins = {}
+	local run_count = #report.runs
+	if run_count > 0 then
+		local min_tick = nil
+		local max_tick = nil
+		for _, run in ipairs(report.runs) do
+			local ticks = tonumber(run.ticks) or 0
+			if min_tick == nil or ticks < min_tick then
+				min_tick = ticks
+			end
+			if max_tick == nil or ticks > max_tick then
+				max_tick = ticks
+			end
+		end
+
+		min_tick = min_tick or 0
+		max_tick = max_tick or min_tick
+		local bucket_count = math.min(10, math.max(4, math.floor(math.sqrt(run_count))))
+		local span = math.max(max_tick - min_tick + 1, 1)
+		local bucket_size = math.max(1, math.ceil(span / bucket_count))
+
+		for bucket_index = 1, bucket_count do
+			local start_tick = min_tick + (bucket_index - 1) * bucket_size
+			local end_tick = math.min(start_tick + bucket_size - 1, max_tick)
+			bins[bucket_index] = {
+				label = string.format("%d-%d", start_tick, end_tick),
+				count = 0,
+			}
+		end
+
+		for _, run in ipairs(report.runs) do
+			local ticks = tonumber(run.ticks) or 0
+			local raw_index = math.floor((ticks - min_tick) / bucket_size) + 1
+			local bucket_index = clamp(raw_index, 1, bucket_count)
+			bins[bucket_index].count = (bins[bucket_index].count or 0) + 1
+		end
+	end
+
+	self.last_batch_distribution = {
+		bins = bins,
+	}
+
+	local sorted_ticks = {}
+	for _, run in ipairs(report.runs) do
+		sorted_ticks[#sorted_ticks + 1] = tonumber(run.ticks) or 0
+	end
+	table.sort(sorted_ticks)
+	local preview_points = {}
+	local preview_count = math.min(#sorted_ticks, 24)
+	if preview_count >= 2 then
+		for preview_index = 1, preview_count do
+			local t = (preview_index - 1) / (preview_count - 1)
+			local source_index = math.floor(t * (#sorted_ticks - 1)) + 1
+			preview_points[#preview_points + 1] = sorted_ticks[source_index]
+		end
+	end
+	self.last_batch_chart_points = preview_points
+	self.last_accuracy_text = string.format(
+		"Most likely end: %s (%.1f%%).\nTick mean %.1f, 95%% CI [%.1f..%.1f].",
+		tostring(top_reason),
+		top_share * 100,
+		mean_ticks,
+		ci_low,
+		ci_high
+	)
+
+	local sys_info = sys.get_sys_info()
+	local is_html5 = sys_info ~= nil and sys_info.system_name == "HTML5"
+	if is_html5 then
+		self.status_line = "Batch done in browser mode."
+	else
+		local saved, save_err = save_batch_report(report)
+		if not saved then
+			self.status_line = "Batch done, save failed: " .. tostring(save_err)
+		else
+			self.status_line = "Batch done and report saved: " .. BATCH_REPORT_PATH
+		end
+	end
+
+	self.render_dirty = true
+end
+
+local function run_regression_suite(self)
+	local report = Regression.run_all()
+	self.last_regression_report = report
+	if report.failed > 0 then
+		for _, case_result in ipairs(report.cases or {}) do
+			if not case_result.ok then
+				print(string.format(
+					"machinations_regression: %s -> fail (%s)",
+					case_result.name or "-",
+					tostring(case_result.message or "")
+				))
+			end
+		end
+	end
+	if report.failed == 0 then
+		self.status_line = string.format("Regressions passed: %d/%d", report.passed, report.total)
+	else
+		local first_failure = nil
+		for _, case_result in ipairs(report.cases or {}) do
+			if not case_result.ok then
+				first_failure = case_result
+				break
+			end
+		end
+		if first_failure ~= nil then
+			self.status_line = string.format(
+				"Regressions failed: %d/%d | %s: %s",
+				report.failed,
+				report.total,
+				first_failure.name,
+				first_failure.message
+			)
+		else
+			self.status_line = string.format("Regressions failed: %d/%d", report.failed, report.total)
+		end
+	end
+	self.render_dirty = true
+end
+
+local function load_autogenerated_case(self)
+	local case, total, normalized_index = Autogen.get_case((self.autogen_case_index or 0) + 1, "default", self.seed)
+	if case == nil then
+		self.status_line = "Autogen did not return any cases."
+		self.render_dirty = true
+		return
+	end
+
+	local diagram_path = build_autogen_case_path(case.id)
+	local browser_mode = is_html5_runtime()
+	local saved = true
+	local save_err = nil
+	if not browser_mode then
+		saved, save_err = Io.encode_diagram_file(diagram_path, case.diagram, true)
+	end
+
+	clear_analytics_state(self)
+	apply_design_diagram(
+		self,
+		case.diagram,
+		string.format("Auto-generated case %d/%d: %s", normalized_index, total, tostring(case.name or case.id)),
+		true
+	)
+
+	self.autogen_case_index = normalized_index
+	self.last_batch_distribution = build_generated_case_distribution(case.diagram)
+	self.last_batch_chart_points = build_generated_case_chart_points(case.diagram)
+	self.last_accuracy_text = build_generated_case_accuracy_text(
+		case,
+		normalized_index,
+		total,
+		diagram_path,
+		saved == true and nil or save_err
+	)
+	if saved then
+		if browser_mode then
+			self.status_line = string.format("Auto-generated %s in browser mode", tostring(case.id))
+		else
+			self.status_line = string.format("Auto-generated %s and saved to %s", tostring(case.id), diagram_path)
+		end
+	else
+		self.status_line = string.format("Auto-generated %s, save failed: %s", tostring(case.id), tostring(save_err))
+	end
+	self.render_dirty = true
+end
+
+local function run_auto_verification(self)
+	clear_analytics_state(self)
+	local browser_mode = is_html5_runtime()
+
+	local report = Autogen.run_suite({
+		profile = "default",
+		seed = self.seed,
+		persist = not browser_mode,
+		diagram_dir = "source/diagrams",
+		report_path = AUTOGEN_REPORT_PATH,
+	})
+	if browser_mode then
+		report.report_path = "browser-memory"
+	end
+
+	self.last_autogen_report = report
+	self.last_batch_distribution = build_autogen_distribution(report)
+	self.last_batch_chart_points = build_autogen_chart_points(report)
+	self.last_accuracy_text = build_autogen_accuracy_text(report)
+
+	if report.failed > 0 then
+		for _, case_result in ipairs(report.cases or {}) do
+			if not case_result.ok then
+				print(string.format(
+					"machinations_autogen: %s -> fail (%s)",
+					tostring(case_result.id or case_result.name or "-"),
+					tostring(case_result.message or "")
+				))
+			end
+		end
+	end
+
+	if report.failed == 0 then
+		self.status_line = string.format("Auto verify passed: %d/%d", report.passed or 0, report.total or 0)
+	else
+		local first_failure = find_first_failed_case(report)
+		self.status_line = string.format(
+			"Auto verify failed: %d/%d | %s: %s",
+			report.failed or 0,
+			report.total or 0,
+			tostring(first_failure and (first_failure.id or first_failure.name) or "unknown"),
+			tostring(first_failure and first_failure.message or "")
+		)
+	end
+
+	if report.report_saved == false then
+		self.status_line = self.status_line .. " | save failed: " .. tostring(report.report_error)
+	elseif browser_mode then
+		self.status_line = self.status_line .. " | browser mode"
+	else
+		self.status_line = self.status_line .. " | " .. tostring(AUTOGEN_REPORT_PATH)
+	end
+
+	self.render_dirty = true
+end
+
+local function save_editor_snapshot(self)
+	local diagram = copy_table(self.design_diagram)
+	diagram.editor_positions = copy_table(self.editor_positions)
+	local ok, err = Io.encode_diagram_file(SNAPSHOT_PATH, diagram, true)
+	if not ok then
+		self.status_line = "Save failed: " .. tostring(err)
+	else
+		self.status_line = "Saved diagram snapshot: " .. SNAPSHOT_PATH
+	end
+	self.render_dirty = true
+end
+
+local function fit_camera_to_diagram(self)
+	local min_x = nil
+	local max_x = nil
+	local min_y = nil
+	local max_y = nil
+
+	local function include_bounds(center_x, center_y, width, height)
+		local half_w = width * 0.5
+		local half_h = height * 0.5
+		local left = center_x - half_w
+		local right = center_x + half_w
+		local bottom = center_y - half_h
+		local top = center_y + half_h
+		min_x = min_x == nil and left or math.min(min_x, left)
+		max_x = max_x == nil and right or math.max(max_x, right)
+		min_y = min_y == nil and bottom or math.min(min_y, bottom)
+		max_y = max_y == nil and top or math.max(max_y, top)
+	end
+
+	for _, node in ipairs(self.design_diagram.nodes or {}) do
+		local pos = self.editor_positions[node.id]
+		if pos ~= nil then
+			local width, height = get_payload_dimensions(node.type)
+			include_bounds(pos.x, pos.y, width, height)
+		end
+	end
+
+	for _, visual_node in ipairs(self.design_diagram.legacy_visual_nodes or {}) do
+		local width, height = get_payload_dimensions(nil, visual_node)
+		local center_x, center_y = resolve_visual_anchor_position(visual_node, width, height)
+		include_bounds(center_x, center_y, width, height)
+	end
+
+	if min_x == nil or max_x == nil or min_y == nil or max_y == nil then
+		self.camera_x = 0
+		self.camera_y = 0
+		self.camera_zoom = 0.9
+		return
+	end
+
+	local viewport_w = self.viewport_w or DEFAULT_VIEWPORT_W
+	local viewport_h = self.viewport_h or DEFAULT_VIEWPORT_H
+	local left, right, bottom, top = get_canvas_rect(viewport_w, viewport_h)
+	local canvas_w = math.max((right - left) - 48, 80)
+	local canvas_h = math.max((top - bottom) - 48, 80)
+	local world_w = math.max((max_x - min_x) + 160, 120)
+	local world_h = math.max((max_y - min_y) + 160, 120)
+
+	self.camera_x = (min_x + max_x) * 0.5
+	self.camera_y = (min_y + max_y) * 0.5
+	self.camera_zoom = clamp(math.min(canvas_w / world_w, canvas_h / world_h), 0.35, 1.1)
+end
+
+function apply_design_diagram(self, diagram, status_line, overwrite_initial)
+	self.design_diagram = copy_table(diagram)
+	self.editor_positions = extract_editor_positions(self.design_diagram)
+	apply_auto_positions(self.design_diagram, self.editor_positions)
+	self.selected_node_id = nil
+	self.dragging_node_id = nil
+	self.panning = false
+	self.autoplay = false
+	self.autoplay_accum = 0
+	fit_camera_to_diagram(self)
+	setup_serials(self)
+	restart_runtime(self)
+
+	if overwrite_initial then
+		self.initial_diagram = copy_table(self.design_diagram)
+	end
+
+	self.status_line = status_line
+	self.render_dirty = true
+end
+
+local function load_design_diagram(self, path)
+	local diagram, err = load_diagram_from_path(path)
+	if not diagram then
+		self.status_line = "Load failed: " .. tostring(err)
+		print("machinations_load_failed", path, tostring(err))
+		self.render_dirty = true
+		return false
+	end
+
+	local status_line = "Loaded diagram: " .. path
+	local legacy_import = diagram.legacy_import
+	if type(legacy_import) == "table" then
+		status_line = string.format(
+			"Imported legacy XML: %s (warnings %d)",
+			path,
+			#(legacy_import.warnings or {})
+		)
+	end
+
+	apply_design_diagram(self, diagram, status_line, true)
+	return true
+end
+
+local function reset_design_diagram(self)
+	if self.initial_diagram == nil then
+		return
+	end
+	apply_design_diagram(self, self.initial_diagram, "Reset to initial diagram.", false)
+end
+
+local function make_unique_node_id(self, prefix)
+	while true do
+		local id = prefix .. "_" .. tostring(self.next_node_serial)
+		self.next_node_serial = self.next_node_serial + 1
+		if not node_id_exists(self.design_diagram, id) then
+			return id
+		end
+	end
+end
+
+local function make_unique_connection_id(self, prefix)
+	while true do
+		local id = prefix .. "_" .. tostring(self.next_connection_serial)
+		self.next_connection_serial = self.next_connection_serial + 1
+		if not connection_id_exists(self.design_diagram, id) then
+			return id
+		end
+	end
+end
+
+local function add_connection(self, from_id, to_id)
+	if from_id == nil or to_id == nil or from_id == to_id then
+		return
+	end
+
+	for _, connection in ipairs(self.design_diagram.connections or {}) do
+		if connection.type == types.CONNECTION.RESOURCE and connection.from == from_id and connection.to == to_id then
+			return
+		end
+	end
+
+	local connection_id = make_unique_connection_id(self, "connection")
+	table.insert(self.design_diagram.connections, {
+		id = connection_id,
+		from = from_id,
+		to = to_id,
+		type = types.CONNECTION.RESOURCE,
+		flow_mode = types.FLOW_MODE.PUSH,
+		amount = 1,
+	})
+end
+
+local function add_node(self, node_type, world_x, world_y)
+	local prefix = node_type
+	local node_id = make_unique_node_id(self, prefix)
+	local node = {
+		id = node_id,
+		type = node_type,
+		trigger_mode = types.TRIGGER_MODE.AUTOMATIC,
+		initial_resources = 0,
+		rate = 1,
+		register_value = 0,
+		enabled = true,
+		data = {},
+	}
+
+	if node_type == types.NODE.SOURCE then
+		node.initial_resources = 20
+		node.data.finite_source = true
+	elseif node_type == types.NODE.DRAIN then
+		node.trigger_mode = types.TRIGGER_MODE.PASSIVE
+	elseif node_type == types.NODE.REGISTER then
+		node.trigger_mode = types.TRIGGER_MODE.PASSIVE
+	elseif node_type == types.NODE.GATE then
+		node.gate_mode = types.GATE_MODE.ALL
+	elseif node_type == types.NODE.QUEUE or node_type == types.NODE.DELAY then
+		node.delay_ticks = 1
+	end
+
+	table.insert(self.design_diagram.nodes, node)
+	self.editor_positions[node_id] = {
+		x = world_x or self.camera_x,
+		y = world_y or self.camera_y,
+	}
+
+	if self.selected_node_id ~= nil and node_id_exists(self.design_diagram, self.selected_node_id) then
+		add_connection(self, self.selected_node_id, node_id)
+	end
+
+	self.selected_node_id = node_id
+	restart_runtime(self)
+	self.status_line = "Added node: " .. node_id
+	self.render_dirty = true
+end
+
+local function delete_selected_node(self)
+	if self.selected_node_id == nil then
+		self.status_line = "No selected node."
+		self.render_dirty = true
+		return
+	end
+
+	local index = find_node_index(self.design_diagram, self.selected_node_id)
+	if index == nil then
+		self.selected_node_id = nil
+		self.render_dirty = true
+		return
+	end
+
+	table.remove(self.design_diagram.nodes, index)
+	remove_connections_for_node(self.design_diagram, self.selected_node_id)
+	self.editor_positions[self.selected_node_id] = nil
+	self.status_line = "Deleted node."
+	self.selected_node_id = nil
+	restart_runtime(self)
+	self.render_dirty = true
+end
+
+local function handle_command(self, command)
+	local tool_key = string.match(command or "", "^tool:(.+)$")
+	if tool_key ~= nil then
+		self.active_tool = tool_key
+		self.link_from_node_id = nil
+		self.status_line = "Tool selected: " .. tool_key
+		self.render_dirty = true
+		return
+	end
+
+	if command == "step" then
+		step_runtime(self)
+		return
+	end
+
+	if command == "toggle_autoplay" then
+		self.autoplay = not self.autoplay
+		self.status_line = "Autoplay: " .. tostring(self.autoplay)
+		self.render_dirty = true
+		return
+	end
+
+	if command == "batch" then
+		run_batch_simulation(self)
+		return
+	end
+
+	if command == "autogen_next" then
+		load_autogenerated_case(self)
+		return
+	end
+
+	if command == "autoverify" then
+		run_auto_verification(self)
+		return
+	end
+
+	if command == "run_regressions" then
+		run_regression_suite(self)
+		return
+	end
+
+	if command == "add_pool" then
+		add_node(self, types.NODE.POOL)
+		return
+	end
+
+	if command == "add_source" then
+		add_node(self, types.NODE.SOURCE)
+		return
+	end
+
+	if command == "add_gate" then
+		add_node(self, types.NODE.GATE)
+		return
+	end
+
+	if command == "add_drain" then
+		add_node(self, types.NODE.DRAIN)
+		return
+	end
+
+	if command == "add_queue" then
+		add_node(self, types.NODE.QUEUE)
+		return
+	end
+
+	if command == "add_delay" then
+		add_node(self, types.NODE.DELAY)
+		return
+	end
+
+	if command == "add_register" then
+		add_node(self, types.NODE.REGISTER)
+		return
+	end
+
+	if command == "arm_link" then
+		if self.selected_node_id ~= nil then
+			self.link_from_node_id = self.selected_node_id
+			self.status_line = "Link mode armed from " .. self.selected_node_id .. ". Click target node."
+		else
+			self.status_line = "Select node before arming link."
+		end
+		self.render_dirty = true
+		return
+	end
+
+	if command == "delete_selected" then
+		delete_selected_node(self)
+		return
+	end
+
+	if command == "reset" then
+		reset_design_diagram(self)
+		return
+	end
+
+	if command == "save" then
+		save_editor_snapshot(self)
+		return
+	end
+
+	if command == "load" then
+		local loaded = load_design_diagram(self, DEFAULT_DIAGRAM_PATH)
+		if not loaded then
+			local fallback = load_fallback_diagram()
+			apply_design_diagram(self, fallback, "Loaded fallback diagram.", true)
+		end
+		return
+	end
+
+	if command == "import" then
+		load_design_diagram(self, LEGACY_SAMPLE_PATH)
+		return
+	end
+end
+
+local function handle_pointer_down(self, message)
+	self.viewport_w = message.viewport_w or self.viewport_w
+	self.viewport_h = message.viewport_h or self.viewport_h
+	self.last_pointer_x = message.x or self.last_pointer_x
+	self.last_pointer_y = message.y or self.last_pointer_y
+	local active_tool = self.active_tool or "select"
+
+	local button = message.button or "left"
+	if button == "right" then
+		self.panning = true
+		self.dragging_node_id = nil
+		return
+	end
+
+	local pointer_x = message.x or 0
+	local pointer_y = message.y or 0
+
+	if not is_inside_canvas(pointer_x, pointer_y, self.viewport_w, self.viewport_h) then
+		self.dragging_node_id = nil
+		self.panning = false
+		return
+	end
+
+	if active_tool == "select" or active_tool == "resource" then
+		local handle_id = find_handle_at(self, pointer_x, pointer_y, self.viewport_w, self.viewport_h)
+		if handle_id ~= nil then
+			self.selected_node_id = handle_id
+			self.link_from_node_id = handle_id
+			self.dragging_node_id = nil
+			self.panning = false
+			self.status_line = "Link mode armed from " .. handle_id .. ". Click target node."
+			self.render_dirty = true
+			return
+		end
+	end
+
+	local world_x, world_y = screen_to_world(
+		self,
+		pointer_x,
+		pointer_y,
+		self.viewport_w,
+		self.viewport_h
+	)
+
+	local hit_id = find_node_at(self, world_x, world_y)
+
+	if active_tool == "resource" then
+		if self.link_from_node_id == nil then
+			if hit_id ~= nil then
+				self.selected_node_id = hit_id
+				self.link_from_node_id = hit_id
+				self.status_line = "Link mode armed from " .. hit_id .. ". Click target node."
+			else
+				self.status_line = "Resource connection tool: click a source node."
+			end
+		elseif hit_id ~= nil and hit_id ~= self.link_from_node_id then
+			add_connection(self, self.link_from_node_id, hit_id)
+			self.status_line = "Added connection: " .. self.link_from_node_id .. " -> " .. hit_id
+			self.selected_node_id = hit_id
+			self.link_from_node_id = nil
+			restart_runtime(self)
+		else
+			self.status_line = "Link cancelled."
+			self.link_from_node_id = nil
+		end
+		self.render_dirty = true
+		return
+	end
+
+	if active_tool == "state" then
+		self.status_line = "State connection tool is not implemented yet."
+		self.render_dirty = true
+		return
+	end
+
+	local node_type = TOOL_TO_NODE_TYPE[active_tool]
+	if node_type ~= nil then
+		add_node(self, node_type, world_x, world_y)
+		return
+	end
+
+	if active_tool ~= "select" then
+		self.status_line = "Tool not implemented yet: " .. tostring(active_tool)
+		self.render_dirty = true
+		return
+	end
+
+	if self.link_from_node_id ~= nil then
+		if hit_id ~= nil and hit_id ~= self.link_from_node_id then
+			add_connection(self, self.link_from_node_id, hit_id)
+			self.status_line = "Added connection: " .. self.link_from_node_id .. " -> " .. hit_id
+			self.link_from_node_id = nil
+			restart_runtime(self)
+		else
+			self.status_line = "Link cancelled."
+			self.link_from_node_id = nil
+		end
+		self.render_dirty = true
+		return
+	end
+
+	self.selected_node_id = hit_id
+
+	if hit_id ~= nil then
+		local pos = self.editor_positions[hit_id]
+		self.dragging_node_id = hit_id
+		self.drag_offset_x = pos.x - world_x
+		self.drag_offset_y = pos.y - world_y
+		self.panning = false
+	else
+		self.dragging_node_id = nil
+		self.panning = true
+	end
+
+	self.render_dirty = true
+end
+
+local function handle_pointer_move(self, message)
+	self.viewport_w = message.viewport_w or self.viewport_w
+	self.viewport_h = message.viewport_h or self.viewport_h
+
+	local x = message.x or self.last_pointer_x
+	local y = message.y or self.last_pointer_y
+	local dx = message.dx
+	local dy = message.dy
+	if dx == nil then
+		dx = x - self.last_pointer_x
+	end
+	if dy == nil then
+		dy = y - self.last_pointer_y
+	end
+
+	if self.dragging_node_id ~= nil then
+		local world_x, world_y = screen_to_world(self, x, y, self.viewport_w, self.viewport_h)
+		local pos = self.editor_positions[self.dragging_node_id]
+		if pos ~= nil then
+			pos.x = world_x + self.drag_offset_x
+			pos.y = world_y + self.drag_offset_y
+			self.render_dirty = true
+		end
+	elseif self.panning then
+		self.camera_x = self.camera_x - dx / self.camera_zoom
+		self.camera_y = self.camera_y - dy / self.camera_zoom
+		self.render_dirty = true
+	end
+
+	self.last_pointer_x = x
+	self.last_pointer_y = y
+end
+
+local function handle_pointer_up(self, message)
+	self.dragging_node_id = nil
+	self.panning = false
+	self.last_pointer_x = message.x or self.last_pointer_x
+	self.last_pointer_y = message.y or self.last_pointer_y
+	self.render_dirty = true
+end
+
+local function handle_pointer_wheel(self, message)
+	local delta = message.delta or 0
+	if delta == 0 then
+		return
+	end
+
+	local pointer_x = message.x or self.last_pointer_x
+	local pointer_y = message.y or self.last_pointer_y
+	if not is_inside_canvas(pointer_x, pointer_y, self.viewport_w, self.viewport_h) then
+		return
+	end
+
+	local zoom_factor = 1 + delta * 0.12
+	self.camera_zoom = clamp(self.camera_zoom * zoom_factor, 0.2, 4.0)
+	self.render_dirty = true
+end
+
+local function handle_pointer_message(self, message)
+	if message.phase == "down" then
+		handle_pointer_down(self, message)
+	elseif message.phase == "move" then
+		handle_pointer_move(self, message)
+	elseif message.phase == "up" then
+		handle_pointer_up(self, message)
+	elseif message.phase == "wheel" then
+		handle_pointer_wheel(self, message)
+	end
+end
+
+function init(self)
+	msg.post(".", "acquire_input_focus")
+
+	self.seed = 17
+	self.camera_x = 0
+	self.camera_y = 0
+	self.camera_zoom = 0.9
+	self.viewport_w = DEFAULT_VIEWPORT_W
+	self.viewport_h = DEFAULT_VIEWPORT_H
+	self.autoplay = false
+	self.autoplay_accum = 0
+	self.dragging_node_id = nil
+	self.drag_offset_x = 0
+	self.drag_offset_y = 0
+	self.panning = false
+	self.last_pointer_x = 0
+	self.last_pointer_y = 0
+	self.selected_node_id = nil
+	self.link_from_node_id = nil
+	self.active_tool = "select"
+	self.status_line = ""
+	self.last_batch_summary = ""
+	self.last_batch_distribution = nil
+	self.last_accuracy_text = nil
+	self.last_batch_chart_points = nil
+	self.last_regression_report = nil
+	self.last_autogen_report = nil
+	self.last_step_summary = nil
+	self.render_dirty = true
+	self.design_diagram = nil
+	self.initial_diagram = nil
+	self.editor_positions = {}
+	self.runtime_state = nil
+	self.autogen_case_index = 0
+
+	local loaded = false
+	if file_exists(DEFAULT_DIAGRAM_PATH) then
+		loaded = load_design_diagram(self, DEFAULT_DIAGRAM_PATH)
+	end
+	if not loaded then
+		local fallback = load_fallback_diagram()
+		apply_design_diagram(self, fallback, "Loaded fallback diagram.", true)
+	end
+
+	run_regression_suite(self)
+	if self.last_regression_report ~= nil then
+		print(string.format(
+			"machinations_editor: regressions %d/%d passed",
+			self.last_regression_report.passed or 0,
+			self.last_regression_report.total or 0
+		))
+	end
+
+	self.status_line = "Editor ready. Drag nodes, pan empty space, zoom with wheel. P builds a generated case, U verifies the generated suite."
+	if self.last_regression_report ~= nil then
+		self.status_line = self.status_line .. string.format(
+			" Regressions %d/%d.",
+			self.last_regression_report.passed or 0,
+			self.last_regression_report.total or 0
+		)
+	end
+	self.render_dirty = true
+	send_render(self)
+	print("machinations_editor: initialized")
+end
+
+function update(self, dt)
+	if self.autoplay and self.runtime_state ~= nil and not self.runtime_state.ended then
+		self.autoplay_accum = self.autoplay_accum + dt
+		while self.autoplay_accum >= AUTOSTEP_INTERVAL do
+			self.autoplay_accum = self.autoplay_accum - AUTOSTEP_INTERVAL
+			step_runtime(self)
+			if not self.autoplay then
+				break
+			end
+		end
+	end
+
+	send_render(self)
+end
+
+function on_message(self, message_id, message, sender)
+	if message_id == MSG_EDITOR_POINTER then
+		handle_pointer_message(self, message)
+	elseif message_id == MSG_EDITOR_COMMAND then
+		handle_command(self, message.command)
+	end
+end
+
+function on_reload(self)
+	self.render_dirty = true
+end

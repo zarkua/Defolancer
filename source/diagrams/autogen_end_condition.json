@@ -1,0 +1,71 @@
+{
+  "connections": [
+    {
+      "id": "source_buffer",
+      "amount": 1,
+      "from": "source",
+      "to": "buffer",
+      "type": "resource"
+    },
+    {
+      "id": "buffer_complete",
+      "action": "set_enabled",
+      "comparator": ">=",
+      "value": 4,
+      "scale": 1,
+      "target_enabled": true,
+      "from": "buffer",
+      "to": "complete",
+      "source_field": "resources",
+      "type": "state"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "source",
+      "initial_resources": 5,
+      "rate": 1,
+      "data": {
+        "finite_source": true
+      },
+      "type": "source",
+      "trigger_mode": "automatic"
+    },
+    {
+      "id": "buffer",
+      "initial_resources": 0,
+      "rate": 1,
+      "type": "pool",
+      "trigger_mode": "passive"
+    },
+    {
+      "id": "complete",
+      "type": "end_condition",
+      "data": {
+        "legacy_caption": "complete"
+      },
+      "enabled": false,
+      "trigger_mode": "passive"
+    }
+  ],
+  "end": {
+    "max_ticks": 12,
+    "stop_when_idle": false
+  },
+  "play_mode": "headless",
+  "editor_positions": {
+    "complete": {
+      "x": 220,
+      "y": 120
+    },
+    "source": {
+      "x": -340,
+      "y": 120
+    },
+    "buffer": {
+      "x": -80,
+      "y": 120
+    }
+  },
+  "name": "Auto End Condition"
+}

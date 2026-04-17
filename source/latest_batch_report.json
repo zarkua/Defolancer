@@ -1,0 +1,1604 @@
+{
+  "aggregates": {
+    "most_likely_end_reason": "idle",
+    "runs_count": 200,
+    "end_reasons": {
+      "idle": 200
+    },
+    "end_reason_share": {
+      "idle": 1
+    },
+    "ticks": {
+      "m2": 0,
+      "variance": 0,
+      "stddev": 0,
+      "count": 200,
+      "mean": 37,
+      "min": 37,
+      "ci95_high": 37,
+      "ci95_low": 37,
+      "max": 37
+    },
+    "nodes": {
+      "loot": {
+        "resources": {
+          "m2": 0,
+          "variance": 0,
+          "stddev": 0,
+          "count": 200,
+          "mean": 0,
+          "min": 0,
+          "ci95_high": 0,
+          "ci95_low": 0,
+          "max": 0
+        },
+        "register": {
+          "m2": 0,
+          "variance": 0,
+          "stddev": 0,
+          "count": 200,
+          "mean": 0,
+          "min": 0,
+          "ci95_high": 0,
+          "ci95_low": 0,
+          "max": 0
+        }
+      },
+      "rarity_gate": {
+        "resources": {
+          "m2": 0,
+          "variance": 0,
+          "stddev": 0,
+          "count": 200,
+          "mean": 0,
+          "min": 0,
+          "ci95_high": 0,
+          "ci95_low": 0,
+          "max": 0
+        },
+        "register": {
+          "m2": 0,
+          "variance": 0,
+          "stddev": 0,
+          "count": 200,
+          "mean": 0,
+          "min": 0,
+          "ci95_high": 0,
+          "ci95_low": 0,
+          "max": 0
+        }
+      },
+      "common_stock": {
+        "resources": {
+          "m2": 0,
+          "variance": 0,
+          "stddev": 0,
+          "count": 200,
+          "mean": 0,
+          "min": 0,
+          "ci95_high": 0,
+          "ci95_low": 0,
+          "max": 0
+        },
+        "register": {
+          "m2": 0,
+          "variance": 0,
+          "stddev": 0,
+          "count": 200,
+          "mean": 0,
+          "min": 0,
+          "ci95_high": 0,
+          "ci95_low": 0,
+          "max": 0
+        }
+      },
+      "rare_stock": {
+        "resources": {
+          "m2": 0,
+          "variance": 0,
+          "stddev": 0,
+          "count": 200,
+          "mean": 0,
+          "min": 0,
+          "ci95_high": 0,
+          "ci95_low": 0,
+          "max": 0
+        },
+        "register": {
+          "m2": 0,
+          "variance": 0,
+          "stddev": 0,
+          "count": 200,
+          "mean": 0,
+          "min": 0,
+          "ci95_high": 0,
+          "ci95_low": 0,
+          "max": 0
+        }
+      },
+      "craft_station": {
+        "resources": {
+          "m2": 0,
+          "variance": 0,
+          "stddev": 0,
+          "count": 200,
+          "mean": 0,
+          "min": 0,
+          "ci95_high": 0,
+          "ci95_low": 0,
+          "max": 0
+        },
+        "register": {
+          "m2": 0,
+          "variance": 0,
+          "stddev": 0,
+          "count": 200,
+          "mean": 0,
+          "min": 0,
+          "ci95_high": 0,
+          "ci95_low": 0,
+          "max": 0
+        }
+      },
+      "item_pool": {
+        "resources": {
+          "m2": 0,
+          "variance": 0,
+          "stddev": 0,
+          "count": 200,
+          "mean": 0,
+          "min": 0,
+          "ci95_high": 0,
+          "ci95_low": 0,
+          "max": 0
+        },
+        "register": {
+          "m2": 0,
+          "variance": 0,
+          "stddev": 0,
+          "count": 200,
+          "mean": 0,
+          "min": 0,
+          "ci95_high": 0,
+          "ci95_low": 0,
+          "max": 0
+        }
+      },
+      "delivery": {
+        "resources": {
+          "m2": 0,
+          "variance": 0,
+          "stddev": 0,
+          "count": 200,
+          "mean": 0,
+          "min": 0,
+          "ci95_high": 0,
+          "ci95_low": 0,
+          "max": 0
+        },
+        "register": {
+          "m2": 0,
+          "variance": 0,
+          "stddev": 0,
+          "count": 200,
+          "mean": 0,
+          "min": 0,
+          "ci95_high": 0,
+          "ci95_low": 0,
+          "max": 0
+        }
+      }
+    }
+  },
+  "metric_node_ids": [
+    "loot",
+    "rarity_gate",
+    "common_stock",
+    "rare_stock",
+    "craft_station",
+    "item_pool",
+    "delivery"
+  ],
+  "runs": [
+    {
+      "end_reason": "idle",
+      "transfers_total": 180,
+      "seed": 17,
+      "ticks": 37,
+      "index": 1
+    },
+    {
+      "end_reason": "idle",
+      "transfers_total": 180,
+      "seed": 18,
+      "ticks": 37,
+      "index": 2
+    },
+    {
+      "end_reason": "idle",
+      "transfers_total": 180,
+      "seed": 19,
+      "ticks": 37,
+      "index": 3
+    },
+    {
+      "end_reason": "idle",
+      "transfers_total": 180,
+      "seed": 20,
+      "ticks": 37,
+      "index": 4
+    },
+    {
+      "end_reason": "idle",
+      "transfers_total": 180,
+      "seed": 21,
+      "ticks": 37,
+      "index": 5
+    },
+    {
+      "end_reason": "idle",
+      "transfers_total": 180,
+      "seed": 22,
+      "ticks": 37,
+      "index": 6
+    },
+    {
+      "end_reason": "idle",
+      "transfers_total": 180,
+      "seed": 23,
+      "ticks": 37,
+      "index": 7
+    },
+    {
+      "end_reason": "idle",
+      "transfers_total": 180,
+      "seed": 24,
+      "ticks": 37,
+      "index": 8
+    },
+    {
+      "end_reason": "idle",
+      "transfers_total": 180,
+      "seed": 25,
+      "ticks": 37,
+      "index": 9
+    },
+    {
+      "end_reason": "idle",
+      "transfers_total": 180,
+      "seed": 26,
+      "ticks": 37,
+      "index": 10
+    },
+    {
+      "end_reason": "idle",
+      "transfers_total": 180,
+      "seed": 27,
+      "ticks": 37,
+      "index": 11
+    },
+    {
+      "end_reason": "idle",
+      "transfers_total": 180,
+      "seed": 28,
+      "ticks": 37,
+      "index": 12
+    },
+    {
+      "end_reason": "idle",
+      "transfers_total": 180,
+      "seed": 29,
+      "ticks": 37,
+      "index": 13
+    },
+    {
+      "end_reason": "idle",
+      "transfers_total": 180,
+      "seed": 30,
+      "ticks": 37,
+      "index": 14
+    },
+    {
+      "end_reason": "idle",
+      "transfers_total": 180,
+      "seed": 31,
+      "ticks": 37,
+      "index": 15
+    },
+    {
+      "end_reason": "idle",
+      "transfers_total": 180,
+      "seed": 32,
+      "ticks": 37,
+      "index": 16
+    },
+    {
+      "end_reason": "idle",
+      "transfers_total": 180,
+      "seed": 33,
+      "ticks": 37,
+      "index": 17
+    },
+    {
+      "end_reason": "idle",
+      "transfers_total": 180,
+      "seed": 34,
+      "ticks": 37,
+      "index": 18
+    },
+    {
+      "end_reason": "idle",
+      "transfers_total": 180,
+      "seed": 35,
+      "ticks": 37,
+      "index": 19
+    },
+    {
+      "end_reason": "idle",
+      "transfers_total": 180,
+      "seed": 36,
+      "ticks": 37,
+      "index": 20
+    },
+    {
+      "end_reason": "idle",
+      "transfers_total": 180,
+      "seed": 37,
+      "ticks": 37,
+      "index": 21
+    },
+    {
+      "end_reason": "idle",
+      "transfers_total": 180,
+      "seed": 38,
+      "ticks": 37,
+      "index": 22
+    },
+    {
+      "end_reason": "idle",
+      "transfers_total": 180,
+      "seed": 39,
+      "ticks": 37,
+      "index": 23
+    },
+    {
+      "end_reason": "idle",
+      "transfers_total": 180,
+      "seed": 40,
+      "ticks": 37,
+      "index": 24
+    },
+    {
+      "end_reason": "idle",
+      "transfers_total": 180,
+      "seed": 41,
+      "ticks": 37,
+      "index": 25
+    },
+    {
+      "end_reason": "idle",
+      "transfers_total": 180,
+      "seed": 42,
+      "ticks": 37,
+      "index": 26
+    },
+    {
+      "end_reason": "idle",
+      "transfers_total": 180,
+      "seed": 43,
+      "ticks": 37,
+      "index": 27
+    },
+    {
+      "end_reason": "idle",
+      "transfers_total": 180,
+      "seed": 44,
+      "ticks": 37,
+      "index": 28
+    },
+    {
+      "end_reason": "idle",
+      "transfers_total": 180,
+      "seed": 45,
+      "ticks": 37,
+      "index": 29
+    },
+    {
+      "end_reason": "idle",
+      "transfers_total": 180,
+      "seed": 46,
+      "ticks": 37,
+      "index": 30
+    },
+    {
+      "end_reason": "idle",
+      "transfers_total": 180,
+      "seed": 47,
+      "ticks": 37,
+      "index": 31
+    },
+    {
+      "end_reason": "idle",
+      "transfers_total": 180,
+      "seed": 48,
+      "ticks": 37,
+      "index": 32
+    },
+    {
+      "end_reason": "idle",
+      "transfers_total": 180,
+      "seed": 49,
+      "ticks": 37,
+      "index": 33
+    },
+    {
+      "end_reason": "idle",
+      "transfers_total": 180,
+      "seed": 50,
+      "ticks": 37,
+      "index": 34
+    },
+    {
+      "end_reason": "idle",
+      "transfers_total": 180,
+      "seed": 51,
+      "ticks": 37,
+      "index": 35
+    },
+    {
+      "end_reason": "idle",
+      "transfers_total": 180,
+      "seed": 52,
+      "ticks": 37,
+      "index": 36
+    },
+    {
+      "end_reason": "idle",
+      "transfers_total": 180,
+      "seed": 53,
+      "ticks": 37,
+      "index": 37
+    },
+    {
+      "end_reason": "idle",
+      "transfers_total": 180,
+      "seed": 54,
+      "ticks": 37,
+      "index": 38
+    },
+    {
+      "end_reason": "idle",
+      "transfers_total": 180,
+      "seed": 55,
+      "ticks": 37,
+      "index": 39
+    },
+    {
+      "end_reason": "idle",
+      "transfers_total": 180,
+      "seed": 56,
+      "ticks": 37,
+      "index": 40
+    },
+    {
+      "end_reason": "idle",
+      "transfers_total": 180,
+      "seed": 57,
+      "ticks": 37,
+      "index": 41
+    },
+    {
+      "end_reason": "idle",
+      "transfers_total": 180,
+      "seed": 58,
+      "ticks": 37,
+      "index": 42
+    },
+    {
+      "end_reason": "idle",
+      "transfers_total": 180,
+      "seed": 59,
+      "ticks": 37,
+      "index": 43
+    },
+    {
+      "end_reason": "idle",
+      "transfers_total": 180,
+      "seed": 60,
+      "ticks": 37,
+      "index": 44
+    },
+    {
+      "end_reason": "idle",
+      "transfers_total": 180,
+      "seed": 61,
+      "ticks": 37,
+      "index": 45
+    },
+    {
+      "end_reason": "idle",
+      "transfers_total": 180,
+      "seed": 62,
+      "ticks": 37,
+      "index": 46
+    },
+    {
+      "end_reason": "idle",
+      "transfers_total": 180,
+      "seed": 63,
+      "ticks": 37,
+      "index": 47
+    },
+    {
+      "end_reason": "idle",
+      "transfers_total": 180,
+      "seed": 64,
+      "ticks": 37,
+      "index": 48
+    },
+    {
+      "end_reason": "idle",
+      "transfers_total": 180,
+      "seed": 65,
+      "ticks": 37,
+      "index": 49
+    },
+    {
+      "end_reason": "idle",
+      "transfers_total": 180,
+      "seed": 66,
+      "ticks": 37,
+      "index": 50
+    },
+    {
+      "end_reason": "idle",
+      "transfers_total": 180,
+      "seed": 67,
+      "ticks": 37,
+      "index": 51
+    },
+    {
+      "end_reason": "idle",
+      "transfers_total": 180,
+      "seed": 68,
+      "ticks": 37,
+      "index": 52
+    },
+    {
+      "end_reason": "idle",
+      "transfers_total": 180,
+      "seed": 69,
+      "ticks": 37,
+      "index": 53
+    },
+    {
+      "end_reason": "idle",
+      "transfers_total": 180,
+      "seed": 70,
+      "ticks": 37,
+      "index": 54
+    },
+    {
+      "end_reason": "idle",
+      "transfers_total": 180,
+      "seed": 71,
+      "ticks": 37,
+      "index": 55
+    },
+    {
+      "end_reason": "idle",
+      "transfers_total": 180,
+      "seed": 72,
+      "ticks": 37,
+      "index": 56
+    },
+    {
+      "end_reason": "idle",
+      "transfers_total": 180,
+      "seed": 73,
+      "ticks": 37,
+      "index": 57
+    },
+    {
+      "end_reason": "idle",
+      "transfers_total": 180,
+      "seed": 74,
+      "ticks": 37,
+      "index": 58
+    },
+    {
+      "end_reason": "idle",
+      "transfers_total": 180,
+      "seed": 75,
+      "ticks": 37,
+      "index": 59
+    },
+    {
+      "end_reason": "idle",
+      "transfers_total": 180,
+      "seed": 76,
+      "ticks": 37,
+      "index": 60
+    },
+    {
+      "end_reason": "idle",
+      "transfers_total": 180,
+      "seed": 77,
+      "ticks": 37,
+      "index": 61
+    },
+    {
+      "end_reason": "idle",
+      "transfers_total": 180,
+      "seed": 78,
+      "ticks": 37,
+      "index": 62
+    },
+    {
+      "end_reason": "idle",
+      "transfers_total": 180,
+      "seed": 79,
+      "ticks": 37,
+      "index": 63
+    },
+    {
+      "end_reason": "idle",
+      "transfers_total": 180,
+      "seed": 80,
+      "ticks": 37,
+      "index": 64
+    },
+    {
+      "end_reason": "idle",
+      "transfers_total": 180,
+      "seed": 81,
+      "ticks": 37,
+      "index": 65
+    },
+    {
+      "end_reason": "idle",
+      "transfers_total": 180,
+      "seed": 82,
+      "ticks": 37,
+      "index": 66
+    },
+    {
+      "end_reason": "idle",
+      "transfers_total": 180,
+      "seed": 83,
+      "ticks": 37,
+      "index": 67
+    },
+    {
+      "end_reason": "idle",
+      "transfers_total": 180,
+      "seed": 84,
+      "ticks": 37,
+      "index": 68
+    },
+    {
+      "end_reason": "idle",
+      "transfers_total": 180,
+      "seed": 85,
+      "ticks": 37,
+      "index": 69
+    },
+    {
+      "end_reason": "idle",
+      "transfers_total": 180,
+      "seed": 86,
+      "ticks": 37,
+      "index": 70
+    },
+    {
+      "end_reason": "idle",
+      "transfers_total": 180,
+      "seed": 87,
+      "ticks": 37,
+      "index": 71
+    },
+    {
+      "end_reason": "idle",
+      "transfers_total": 180,
+      "seed": 88,
+      "ticks": 37,
+      "index": 72
+    },
+    {
+      "end_reason": "idle",
+      "transfers_total": 180,
+      "seed": 89,
+      "ticks": 37,
+      "index": 73
+    },
+    {
+      "end_reason": "idle",
+      "transfers_total": 180,
+      "seed": 90,
+      "ticks": 37,
+      "index": 74
+    },
+    {
+      "end_reason": "idle",
+      "transfers_total": 180,
+      "seed": 91,
+      "ticks": 37,
+      "index": 75
+    },
+    {
+      "end_reason": "idle",
+      "transfers_total": 180,
+      "seed": 92,
+      "ticks": 37,
+      "index": 76
+    },
+    {
+      "end_reason": "idle",
+      "transfers_total": 180,
+      "seed": 93,
+      "ticks": 37,
+      "index": 77
+    },
+    {
+      "end_reason": "idle",
+      "transfers_total": 180,
+      "seed": 94,
+      "ticks": 37,
+      "index": 78
+    },
+    {
+      "end_reason": "idle",
+      "transfers_total": 180,
+      "seed": 95,
+      "ticks": 37,
+      "index": 79
+    },
+    {
+      "end_reason": "idle",
+      "transfers_total": 180,
+      "seed": 96,
+      "ticks": 37,
+      "index": 80
+    },
+    {
+      "end_reason": "idle",
+      "transfers_total": 180,
+      "seed": 97,
+      "ticks": 37,
+      "index": 81
+    },
+    {
+      "end_reason": "idle",
+      "transfers_total": 180,
+      "seed": 98,
+      "ticks": 37,
+      "index": 82
+    },
+    {
+      "end_reason": "idle",
+      "transfers_total": 180,
+      "seed": 99,
+      "ticks": 37,
+      "index": 83
+    },
+    {
+      "end_reason": "idle",
+      "transfers_total": 180,
+      "seed": 100,
+      "ticks": 37,
+      "index": 84
+    },
+    {
+      "end_reason": "idle",
+      "transfers_total": 180,
+      "seed": 101,
+      "ticks": 37,
+      "index": 85
+    },
+    {
+      "end_reason": "idle",
+      "transfers_total": 180,
+      "seed": 102,
+      "ticks": 37,
+      "index": 86
+    },
+    {
+      "end_reason": "idle",
+      "transfers_total": 180,
+      "seed": 103,
+      "ticks": 37,
+      "index": 87
+    },
+    {
+      "end_reason": "idle",
+      "transfers_total": 180,
+      "seed": 104,
+      "ticks": 37,
+      "index": 88
+    },
+    {
+      "end_reason": "idle",
+      "transfers_total": 180,
+      "seed": 105,
+      "ticks": 37,
+      "index": 89
+    },
+    {
+      "end_reason": "idle",
+      "transfers_total": 180,
+      "seed": 106,
+      "ticks": 37,
+      "index": 90
+    },
+    {
+      "end_reason": "idle",
+      "transfers_total": 180,
+      "seed": 107,
+      "ticks": 37,
+      "index": 91
+    },
+    {
+      "end_reason": "idle",
+      "transfers_total": 180,
+      "seed": 108,
+      "ticks": 37,
+      "index": 92
+    },
+    {
+      "end_reason": "idle",
+      "transfers_total": 180,
+      "seed": 109,
+      "ticks": 37,
+      "index": 93
+    },
+    {
+      "end_reason": "idle",
+      "transfers_total": 180,
+      "seed": 110,
+      "ticks": 37,
+      "index": 94
+    },
+    {
+      "end_reason": "idle",
+      "transfers_total": 180,
+      "seed": 111,
+      "ticks": 37,
+      "index": 95
+    },
+    {
+      "end_reason": "idle",
+      "transfers_total": 180,
+      "seed": 112,
+      "ticks": 37,
+      "index": 96
+    },
+    {
+      "end_reason": "idle",
+      "transfers_total": 180,
+      "seed": 113,
+      "ticks": 37,
+      "index": 97
+    },
+    {
+      "end_reason": "idle",
+      "transfers_total": 180,
+      "seed": 114,
+      "ticks": 37,
+      "index": 98
+    },
+    {
+      "end_reason": "idle",
+      "transfers_total": 180,
+      "seed": 115,
+      "ticks": 37,
+      "index": 99
+    },
+    {
+      "end_reason": "idle",
+      "transfers_total": 180,
+      "seed": 116,
+      "ticks": 37,
+      "index": 100
+    },
+    {
+      "end_reason": "idle",
+      "transfers_total": 180,
+      "seed": 117,
+      "ticks": 37,
+      "index": 101
+    },
+    {
+      "end_reason": "idle",
+      "transfers_total": 180,
+      "seed": 118,
+      "ticks": 37,
+      "index": 102
+    },
+    {
+      "end_reason": "idle",
+      "transfers_total": 180,
+      "seed": 119,
+      "ticks": 37,
+      "index": 103
+    },
+    {
+      "end_reason": "idle",
+      "transfers_total": 180,
+      "seed": 120,
+      "ticks": 37,
+      "index": 104
+    },
+    {
+      "end_reason": "idle",
+      "transfers_total": 180,
+      "seed": 121,
+      "ticks": 37,
+      "index": 105
+    },
+    {
+      "end_reason": "idle",
+      "transfers_total": 180,
+      "seed": 122,
+      "ticks": 37,
+      "index": 106
+    },
+    {
+      "end_reason": "idle",
+      "transfers_total": 180,
+      "seed": 123,
+      "ticks": 37,
+      "index": 107
+    },
+    {
+      "end_reason": "idle",
+      "transfers_total": 180,
+      "seed": 124,
+      "ticks": 37,
+      "index": 108
+    },
+    {
+      "end_reason": "idle",
+      "transfers_total": 180,
+      "seed": 125,
+      "ticks": 37,
+      "index": 109
+    },
+    {
+      "end_reason": "idle",
+      "transfers_total": 180,
+      "seed": 126,
+      "ticks": 37,
+      "index": 110
+    },
+    {
+      "end_reason": "idle",
+      "transfers_total": 180,
+      "seed": 127,
+      "ticks": 37,
+      "index": 111
+    },
+    {
+      "end_reason": "idle",
+      "transfers_total": 180,
+      "seed": 128,
+      "ticks": 37,
+      "index": 112
+    },
+    {
+      "end_reason": "idle",
+      "transfers_total": 180,
+      "seed": 129,
+      "ticks": 37,
+      "index": 113
+    },
+    {
+      "end_reason": "idle",
+      "transfers_total": 180,
+      "seed": 130,
+      "ticks": 37,
+      "index": 114
+    },
+    {
+      "end_reason": "idle",
+      "transfers_total": 180,
+      "seed": 131,
+      "ticks": 37,
+      "index": 115
+    },
+    {
+      "end_reason": "idle",
+      "transfers_total": 180,
+      "seed": 132,
+      "ticks": 37,
+      "index": 116
+    },
+    {
+      "end_reason": "idle",
+      "transfers_total": 180,
+      "seed": 133,
+      "ticks": 37,
+      "index": 117
+    },
+    {
+      "end_reason": "idle",
+      "transfers_total": 180,
+      "seed": 134,
+      "ticks": 37,
+      "index": 118
+    },
+    {
+      "end_reason": "idle",
+      "transfers_total": 180,
+      "seed": 135,
+      "ticks": 37,
+      "index": 119
+    },
+    {
+      "end_reason": "idle",
+      "transfers_total": 180,
+      "seed": 136,
+      "ticks": 37,
+      "index": 120
+    },
+    {
+      "end_reason": "idle",
+      "transfers_total": 180,
+      "seed": 137,
+      "ticks": 37,
+      "index": 121
+    },
+    {
+      "end_reason": "idle",
+      "transfers_total": 180,
+      "seed": 138,
+      "ticks": 37,
+      "index": 122
+    },
+    {
+      "end_reason": "idle",
+      "transfers_total": 180,
+      "seed": 139,
+      "ticks": 37,
+      "index": 123
+    },
+    {
+      "end_reason": "idle",
+      "transfers_total": 180,
+      "seed": 140,
+      "ticks": 37,
+      "index": 124
+    },
+    {
+      "end_reason": "idle",
+      "transfers_total": 180,
+      "seed": 141,
+      "ticks": 37,
+      "index": 125
+    },
+    {
+      "end_reason": "idle",
+      "transfers_total": 180,
+      "seed": 142,
+      "ticks": 37,
+      "index": 126
+    },
+    {
+      "end_reason": "idle",
+      "transfers_total": 180,
+      "seed": 143,
+      "ticks": 37,
+      "index": 127
+    },
+    {
+      "end_reason": "idle",
+      "transfers_total": 180,
+      "seed": 144,
+      "ticks": 37,
+      "index": 128
+    },
+    {
+      "end_reason": "idle",
+      "transfers_total": 180,
+      "seed": 145,
+      "ticks": 37,
+      "index": 129
+    },
+    {
+      "end_reason": "idle",
+      "transfers_total": 180,
+      "seed": 146,
+      "ticks": 37,
+      "index": 130
+    },
+    {
+      "end_reason": "idle",
+      "transfers_total": 180,
+      "seed": 147,
+      "ticks": 37,
+      "index": 131
+    },
+    {
+      "end_reason": "idle",
+      "transfers_total": 180,
+      "seed": 148,
+      "ticks": 37,
+      "index": 132
+    },
+    {
+      "end_reason": "idle",
+      "transfers_total": 180,
+      "seed": 149,
+      "ticks": 37,
+      "index": 133
+    },
+    {
+      "end_reason": "idle",
+      "transfers_total": 180,
+      "seed": 150,
+      "ticks": 37,
+      "index": 134
+    },
+    {
+      "end_reason": "idle",
+      "transfers_total": 180,
+      "seed": 151,
+      "ticks": 37,
+      "index": 135
+    },
+    {
+      "end_reason": "idle",
+      "transfers_total": 180,
+      "seed": 152,
+      "ticks": 37,
+      "index": 136
+    },
+    {
+      "end_reason": "idle",
+      "transfers_total": 180,
+      "seed": 153,
+      "ticks": 37,
+      "index": 137
+    },
+    {
+      "end_reason": "idle",
+      "transfers_total": 180,
+      "seed": 154,
+      "ticks": 37,
+      "index": 138
+    },
+    {
+      "end_reason": "idle",
+      "transfers_total": 180,
+      "seed": 155,
+      "ticks": 37,
+      "index": 139
+    },
+    {
+      "end_reason": "idle",
+      "transfers_total": 180,
+      "seed": 156,
+      "ticks": 37,
+      "index": 140
+    },
+    {
+      "end_reason": "idle",
+      "transfers_total": 180,
+      "seed": 157,
+      "ticks": 37,
+      "index": 141
+    },
+    {
+      "end_reason": "idle",
+      "transfers_total": 180,
+      "seed": 158,
+      "ticks": 37,
+      "index": 142
+    },
+    {
+      "end_reason": "idle",
+      "transfers_total": 180,
+      "seed": 159,
+      "ticks": 37,
+      "index": 143
+    },
+    {
+      "end_reason": "idle",
+      "transfers_total": 180,
+      "seed": 160,
+      "ticks": 37,
+      "index": 144
+    },
+    {
+      "end_reason": "idle",
+      "transfers_total": 180,
+      "seed": 161,
+      "ticks": 37,
+      "index": 145
+    },
+    {
+      "end_reason": "idle",
+      "transfers_total": 180,
+      "seed": 162,
+      "ticks": 37,
+      "index": 146
+    },
+    {
+      "end_reason": "idle",
+      "transfers_total": 180,
+      "seed": 163,
+      "ticks": 37,
+      "index": 147
+    },
+    {
+      "end_reason": "idle",
+      "transfers_total": 180,
+      "seed": 164,
+      "ticks": 37,
+      "index": 148
+    },
+    {
+      "end_reason": "idle",
+      "transfers_total": 180,
+      "seed": 165,
+      "ticks": 37,
+      "index": 149
+    },
+    {
+      "end_reason": "idle",
+      "transfers_total": 180,
+      "seed": 166,
+      "ticks": 37,
+      "index": 150
+    },
+    {
+      "end_reason": "idle",
+      "transfers_total": 180,
+      "seed": 167,
+      "ticks": 37,
+      "index": 151
+    },
+    {
+      "end_reason": "idle",
+      "transfers_total": 180,
+      "seed": 168,
+      "ticks": 37,
+      "index": 152
+    },
+    {
+      "end_reason": "idle",
+      "transfers_total": 180,
+      "seed": 169,
+      "ticks": 37,
+      "index": 153
+    },
+    {
+      "end_reason": "idle",
+      "transfers_total": 180,
+      "seed": 170,
+      "ticks": 37,
+      "index": 154
+    },
+    {
+      "end_reason": "idle",
+      "transfers_total": 180,
+      "seed": 171,
+      "ticks": 37,
+      "index": 155
+    },
+    {
+      "end_reason": "idle",
+      "transfers_total": 180,
+      "seed": 172,
+      "ticks": 37,
+      "index": 156
+    },
+    {
+      "end_reason": "idle",
+      "transfers_total": 180,
+      "seed": 173,
+      "ticks": 37,
+      "index": 157
+    },
+    {
+      "end_reason": "idle",
+      "transfers_total": 180,
+      "seed": 174,
+      "ticks": 37,
+      "index": 158
+    },
+    {
+      "end_reason": "idle",
+      "transfers_total": 180,
+      "seed": 175,
+      "ticks": 37,
+      "index": 159
+    },
+    {
+      "end_reason": "idle",
+      "transfers_total": 180,
+      "seed": 176,
+      "ticks": 37,
+      "index": 160
+    },
+    {
+      "end_reason": "idle",
+      "transfers_total": 180,
+      "seed": 177,
+      "ticks": 37,
+      "index": 161
+    },
+    {
+      "end_reason": "idle",
+      "transfers_total": 180,
+      "seed": 178,
+      "ticks": 37,
+      "index": 162
+    },
+    {
+      "end_reason": "idle",
+      "transfers_total": 180,
+      "seed": 179,
+      "ticks": 37,
+      "index": 163
+    },
+    {
+      "end_reason": "idle",
+      "transfers_total": 180,
+      "seed": 180,
+      "ticks": 37,
+      "index": 164
+    },
+    {
+      "end_reason": "idle",
+      "transfers_total": 180,
+      "seed": 181,
+      "ticks": 37,
+      "index": 165
+    },
+    {
+      "end_reason": "idle",
+      "transfers_total": 180,
+      "seed": 182,
+      "ticks": 37,
+      "index": 166
+    },
+    {
+      "end_reason": "idle",
+      "transfers_total": 180,
+      "seed": 183,
+      "ticks": 37,
+      "index": 167
+    },
+    {
+      "end_reason": "idle",
+      "transfers_total": 180,
+      "seed": 184,
+      "ticks": 37,
+      "index": 168
+    },
+    {
+      "end_reason": "idle",
+      "transfers_total": 180,
+      "seed": 185,
+      "ticks": 37,
+      "index": 169
+    },
+    {
+      "end_reason": "idle",
+      "transfers_total": 180,
+      "seed": 186,
+      "ticks": 37,
+      "index": 170
+    },
+    {
+      "end_reason": "idle",
+      "transfers_total": 180,
+      "seed": 187,
+      "ticks": 37,
+      "index": 171
+    },
+    {
+      "end_reason": "idle",
+      "transfers_total": 180,
+      "seed": 188,
+      "ticks": 37,
+      "index": 172
+    },
+    {
+      "end_reason": "idle",
+      "transfers_total": 180,
+      "seed": 189,
+      "ticks": 37,
+      "index": 173
+    },
+    {
+      "end_reason": "idle",
+      "transfers_total": 180,
+      "seed": 190,
+      "ticks": 37,
+      "index": 174
+    },
+    {
+      "end_reason": "idle",
+      "transfers_total": 180,
+      "seed": 191,
+      "ticks": 37,
+      "index": 175
+    },
+    {
+      "end_reason": "idle",
+      "transfers_total": 180,
+      "seed": 192,
+      "ticks": 37,
+      "index": 176
+    },
+    {
+      "end_reason": "idle",
+      "transfers_total": 180,
+      "seed": 193,
+      "ticks": 37,
+      "index": 177
+    },
+    {
+      "end_reason": "idle",
+      "transfers_total": 180,
+      "seed": 194,
+      "ticks": 37,
+      "index": 178
+    },
+    {
+      "end_reason": "idle",
+      "transfers_total": 180,
+      "seed": 195,
+      "ticks": 37,
+      "index": 179
+    },
+    {
+      "end_reason": "idle",
+      "transfers_total": 180,
+      "seed": 196,
+      "ticks": 37,
+      "index": 180
+    },
+    {
+      "end_reason": "idle",
+      "transfers_total": 180,
+      "seed": 197,
+      "ticks": 37,
+      "index": 181
+    },
+    {
+      "end_reason": "idle",
+      "transfers_total": 180,
+      "seed": 198,
+      "ticks": 37,
+      "index": 182
+    },
+    {
+      "end_reason": "idle",
+      "transfers_total": 180,
+      "seed": 199,
+      "ticks": 37,
+      "index": 183
+    },
+    {
+      "end_reason": "idle",
+      "transfers_total": 180,
+      "seed": 200,
+      "ticks": 37,
+      "index": 184
+    },
+    {
+      "end_reason": "idle",
+      "transfers_total": 180,
+      "seed": 201,
+      "ticks": 37,
+      "index": 185
+    },
+    {
+      "end_reason": "idle",
+      "transfers_total": 180,
+      "seed": 202,
+      "ticks": 37,
+      "index": 186
+    },
+    {
+      "end_reason": "idle",
+      "transfers_total": 180,
+      "seed": 203,
+      "ticks": 37,
+      "index": 187
+    },
+    {
+      "end_reason": "idle",
+      "transfers_total": 180,
+      "seed": 204,
+      "ticks": 37,
+      "index": 188
+    },
+    {
+      "end_reason": "idle",
+      "transfers_total": 180,
+      "seed": 205,
+      "ticks": 37,
+      "index": 189
+    },
+    {
+      "end_reason": "idle",
+      "transfers_total": 180,
+      "seed": 206,
+      "ticks": 37,
+      "index": 190
+    },
+    {
+      "end_reason": "idle",
+      "transfers_total": 180,
+      "seed": 207,
+      "ticks": 37,
+      "index": 191
+    },
+    {
+      "end_reason": "idle",
+      "transfers_total": 180,
+      "seed": 208,
+      "ticks": 37,
+      "index": 192
+    },
+    {
+      "end_reason": "idle",
+      "transfers_total": 180,
+      "seed": 209,
+      "ticks": 37,
+      "index": 193
+    },
+    {
+      "end_reason": "idle",
+      "transfers_total": 180,
+      "seed": 210,
+      "ticks": 37,
+      "index": 194
+    },
+    {
+      "end_reason": "idle",
+      "transfers_total": 180,
+      "seed": 211,
+      "ticks": 37,
+      "index": 195
+    },
+    {
+      "end_reason": "idle",
+      "transfers_total": 180,
+      "seed": 212,
+      "ticks": 37,
+      "index": 196
+    },
+    {
+      "end_reason": "idle",
+      "transfers_total": 180,
+      "seed": 213,
+      "ticks": 37,
+      "index": 197
+    },
+    {
+      "end_reason": "idle",
+      "transfers_total": 180,
+      "seed": 214,
+      "ticks": 37,
+      "index": 198
+    },
+    {
+      "end_reason": "idle",
+      "transfers_total": 180,
+      "seed": 215,
+      "ticks": 37,
+      "index": 199
+    },
+    {
+      "end_reason": "idle",
+      "transfers_total": 180,
+      "seed": 216,
+      "ticks": 37,
+      "index": 200
+    }
+  ]
+}

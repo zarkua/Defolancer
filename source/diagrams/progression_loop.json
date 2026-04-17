@@ -1,0 +1,91 @@
+{
+  "name": "Progression Loop",
+  "description": "Accumulated XP pushes the next phase of the reward loop.",
+  "play_mode": "headless",
+  "seed": 33,
+  "nodes": [
+    {
+      "id": "quest_source",
+      "type": "source",
+      "trigger_mode": "automatic",
+      "initial_resources": 36,
+      "rate": 2,
+      "data": {
+        "finite_source": true
+      }
+    },
+    {
+      "id": "xp_bank",
+      "type": "pool",
+      "trigger_mode": "automatic",
+      "initial_resources": 0,
+      "capacity": 24,
+      "rate": 2
+    },
+    {
+      "id": "level_meter",
+      "type": "register",
+      "trigger_mode": "passive",
+      "register_value": 0
+    }
+  ],
+  "connections": [
+    {
+      "id": "quest_to_xp",
+      "from": "quest_source",
+      "to": "xp_bank",
+      "type": "resource",
+      "amount": 1
+    },
+    {
+      "id": "xp_to_level",
+      "from": "xp_bank",
+      "to": "level_meter",
+      "type": "state",
+      "action": "set_register",
+      "source_field": "resources",
+      "comparator": ">=",
+      "value": 0,
+      "scale": 1,
+      "register_op": "set"
+    },
+    {
+      "id": "level_to_rate",
+      "from": "level_meter",
+      "to": "quest_source",
+      "type": "state",
+      "action": "set_rate",
+      "source_field": "register",
+      "comparator": ">=",
+      "value": 0,
+      "scale": 1
+    }
+  ],
+  "end": {
+    "max_ticks": 60,
+    "stop_when_idle": false,
+    "conditions": [
+      {
+        "id": "victory",
+        "node_id": "xp_bank",
+        "field": "resources",
+        "comparator": ">=",
+        "value": 8
+      }
+    ]
+  },
+  "editor_positions": {
+    "quest_source": {
+      "x": -380,
+      "y": 140
+    },
+    "xp_bank": {
+      "x": -120,
+      "y": 140
+    },
+    "level_meter": {
+      "x": 120,
+      "y": 140
+    }
+  }
+}

@@ -12,7 +12,16 @@
   - headless tick-based simulation engine
   - delayed transfer queue
   - state/resource connections
+  - expression evaluator and dynamic formula fields
+  - JSON import/export adapters
+  - file-driven runner wrappers
   - end-condition checks
   - batch-run Monte Carlo style analytics
+- New standalone Defold editor screen:
+  - `screens/machinations_editor/*`
+  - startup switched to `machinations_editor` in `main/main.script`
+  - current status and controls: `source/editor_status.md`
 - Current implementation scope and schema:
   - `source/machinations_kernel_mvp.md`
+- Prioritized transfer backlog:
+  - `source/machinations_transfer_backlog.md`

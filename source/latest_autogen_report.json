@@ -1,0 +1,164 @@
+{
+  "report_path": "source\/latest_autogen_report.json",
+  "cases": [
+    {
+      "id": "hourglass",
+      "warnings": 0,
+      "ok": true,
+      "batch_runs": 0,
+      "message": "ok",
+      "name": "Hourglass",
+      "artifacts": {
+        "diagram_path": "source\/diagrams\/autogen_hourglass.json"
+      },
+      "description": "Finite source drains through a bounded pool into a sink.",
+      "ticks": 9,
+      "end_reason": "idle"
+    },
+    {
+      "id": "crafting_system",
+      "warnings": 0,
+      "ok": true,
+      "batch_runs": 0,
+      "message": "ok",
+      "name": "Crafting System",
+      "artifacts": {
+        "diagram_path": "source\/diagrams\/autogen_crafting_system.json"
+      },
+      "description": "Loot split into rarity buckets and assembled through a crafting station.",
+      "ticks": 37,
+      "end_reason": "idle"
+    },
+    {
+      "id": "delay_flow",
+      "warnings": 0,
+      "ok": true,
+      "batch_runs": 0,
+      "message": "ok",
+      "name": "Delay Flow",
+      "artifacts": {
+        "diagram_path": "source\/diagrams\/autogen_delay_flow.json"
+      },
+      "description": "Auto-built delayed transfer pipeline.",
+      "ticks": 7,
+      "end_reason": "idle"
+    },
+    {
+      "id": "queue_flow",
+      "warnings": 0,
+      "ok": true,
+      "batch_runs": 0,
+      "message": "ok",
+      "name": "Queue Flow",
+      "artifacts": {
+        "diagram_path": "source\/diagrams\/autogen_queue_flow.json"
+      },
+      "description": "Auto-built queued transfer pipeline.",
+      "ticks": 16,
+      "end_reason": "idle"
+    },
+    {
+      "id": "round_robin_split",
+      "warnings": 0,
+      "ok": true,
+      "batch_runs": 0,
+      "message": "ok",
+      "name": "Round Robin Split",
+      "artifacts": {
+        "diagram_path": "source\/diagrams\/autogen_round_robin_split.json"
+      },
+      "description": "Auto-built gate split with deterministic fairness.",
+      "ticks": 12,
+      "end_reason": "idle"
+    },
+    {
+      "id": "farming_crafting_flow",
+      "warnings": 0,
+      "ok": true,
+      "batch_runs": 0,
+      "message": "ok",
+      "name": "Farming & Crafting Flow",
+      "artifacts": {
+        "diagram_path": "source\/diagrams\/autogen_farming_crafting_flow.json"
+      },
+      "description": "Farm output is traded through a market stall into currency.",
+      "ticks": 61,
+      "end_reason": "idle"
+    },
+    {
+      "id": "variable_feedback",
+      "warnings": 0,
+      "ok": true,
+      "batch_runs": 0,
+      "message": "ok",
+      "name": "Variable Feedback",
+      "artifacts": {
+        "diagram_path": "source\/diagrams\/autogen_variable_feedback.json"
+      },
+      "description": "Variable-driven flow with a state connection feeding source behavior.",
+      "ticks": 18,
+      "end_reason": "meter_threshold"
+    },
+    {
+      "id": "progression_loop",
+      "warnings": 0,
+      "ok": true,
+      "batch_runs": 0,
+      "message": "ok",
+      "name": "Progression Loop",
+      "artifacts": {
+        "diagram_path": "source\/diagrams\/autogen_progression_loop.json"
+      },
+      "description": "Cumulative XP drives the next phase of the reward loop.",
+      "ticks": 8,
+      "end_reason": "victory"
+    },
+    {
+      "id": "end_condition",
+      "warnings": 0,
+      "ok": true,
+      "batch_runs": 0,
+      "message": "ok",
+      "name": "End Condition",
+      "artifacts": {
+        "diagram_path": "source\/diagrams\/autogen_end_condition.json"
+      },
+      "description": "Auto-built termination path that activates an end-condition node.",
+      "ticks": 4,
+      "end_reason": "complete"
+    },
+    {
+      "id": "economy_loop",
+      "warnings": 0,
+      "ok": true,
+      "batch_runs": 0,
+      "message": "ok",
+      "name": "Economy Loop",
+      "artifacts": {
+        "diagram_path": "source\/diagrams\/autogen_economy_loop.json"
+      },
+      "description": "A compact trader chain that turns resources into currency.",
+      "ticks": 76,
+      "end_reason": "idle"
+    },
+    {
+      "id": "random_loot",
+      "warnings": 0,
+      "ok": true,
+      "batch_runs": 48,
+      "message": "ok",
+      "name": "Random Loot",
+      "artifacts": {
+        "diagram_path": "source\/diagrams\/autogen_random_loot.json"
+      },
+      "description": "Batch-verified probabilistic loot flow.",
+      "ticks": 121,
+      "end_reason": "rare_target"
+    }
+  ],
+  "failed": 0,
+  "seed": 17,
+  "passed": 11,
+  "total": 11,
+  "profile": "default"
+}

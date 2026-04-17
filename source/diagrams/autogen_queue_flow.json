@@ -1,0 +1,64 @@
+{
+  "connections": [
+    {
+      "id": "source_queue",
+      "amount": 1,
+      "from": "source",
+      "to": "queue",
+      "type": "resource"
+    },
+    {
+      "id": "queue_sink",
+      "amount": 1,
+      "from": "queue",
+      "to": "sink",
+      "type": "resource"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "source",
+      "initial_resources": 7,
+      "rate": 1,
+      "data": {
+        "finite_source": true
+      },
+      "type": "source",
+      "trigger_mode": "automatic"
+    },
+    {
+      "id": "queue",
+      "delay_ticks": 2,
+      "rate": 1,
+      "type": "queue",
+      "trigger_mode": "passive"
+    },
+    {
+      "id": "sink",
+      "initial_resources": 0,
+      "rate": 1,
+      "type": "pool",
+      "trigger_mode": "passive"
+    }
+  ],
+  "end": {
+    "max_ticks": 24,
+    "stop_when_idle": true
+  },
+  "play_mode": "headless",
+  "editor_positions": {
+    "queue": {
+      "x": -60,
+      "y": 120
+    },
+    "sink": {
+      "x": 200,
+      "y": 120
+    },
+    "source": {
+      "x": -320,
+      "y": 120
+    }
+  },
+  "name": "Auto Queue Flow"
+}

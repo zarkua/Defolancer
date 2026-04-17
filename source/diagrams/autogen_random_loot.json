@@ -1,0 +1,111 @@
+{
+  "connections": [
+    {
+      "id": "source_to_gate",
+      "amount": 1,
+      "from": "source",
+      "to": "rarity_gate",
+      "type": "resource"
+    },
+    {
+      "id": "gate_to_common",
+      "amount": 1,
+      "from": "rarity_gate",
+      "to": "common_pool",
+      "type": "resource",
+      "weight": 75
+    },
+    {
+      "id": "gate_to_rare",
+      "amount": 1,
+      "from": "rarity_gate",
+      "to": "rare_pool",
+      "type": "resource",
+      "weight": 25
+    },
+    {
+      "id": "common_to_sink",
+      "amount": 1,
+      "from": "common_pool",
+      "to": "sink",
+      "type": "resource"
+    }
+  ],
+  "name": "Random Loot",
+  "play_mode": "headless",
+  "description": "Probabilistic loot flow tuned for prediction charts.",
+  "nodes": [
+    {
+      "id": "source",
+      "initial_resources": 160,
+      "trigger_mode": "automatic",
+      "data": {
+        "finite_source": true
+      },
+      "rate": 2,
+      "type": "source"
+    },
+    {
+      "id": "rarity_gate",
+      "type": "gate",
+      "trigger_mode": "automatic",
+      "gate_mode": "random"
+    },
+    {
+      "id": "common_pool",
+      "capacity": 180,
+      "initial_resources": 0,
+      "trigger_mode": "automatic",
+      "rate": 2,
+      "type": "pool"
+    },
+    {
+      "id": "rare_pool",
+      "capacity": 120,
+      "initial_resources": 0,
+      "trigger_mode": "automatic",
+      "rate": 2,
+      "type": "pool"
+    },
+    {
+      "id": "sink",
+      "initial_resources": 0,
+      "trigger_mode": "passive",
+      "rate": 99,
+      "type": "drain"
+    }
+  ],
+  "seed": 11,
+  "end": {
+    "stop_when_idle": false,
+    "max_ticks": 220,
+    "conditions": [
+      {
+        "id": "rare_target",
+        "expression": "nodes.rare_pool.resources >= 28"
+      }
+    ]
+  },
+  "editor_positions": {
+    "common_pool": {
+      "x": 140,
+      "y": 180
+    },
+    "rare_pool": {
+      "x": 140,
+      "y": 40
+    },
+    "rarity_gate": {
+      "x": -100,
+      "y": 120
+    },
+    "sink": {
+      "x": 390,
+      "y": 180
+    },
+    "source": {
+      "x": -360,
+      "y": 120
+    }
+  }
+}

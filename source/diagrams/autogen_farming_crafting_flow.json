@@ -1,0 +1,107 @@
+{
+  "connections": [
+    {
+      "id": "farm_to_harvest",
+      "amount": 1,
+      "from": "farm_source",
+      "to": "harvest_bin",
+      "type": "resource"
+    },
+    {
+      "id": "harvest_to_market",
+      "amount": 1,
+      "from": "harvest_bin",
+      "to": "market_stall",
+      "type": "resource"
+    },
+    {
+      "id": "market_to_wallet",
+      "amount": 1,
+      "from": "market_stall",
+      "to": "coin_wallet",
+      "type": "resource"
+    },
+    {
+      "id": "wallet_to_treasury",
+      "amount": 1,
+      "from": "coin_wallet",
+      "to": "treasury",
+      "type": "resource"
+    }
+  ],
+  "name": "Farming & Crafting Flow",
+  "play_mode": "headless",
+  "description": "Farm output moves through a trader chain into currency.",
+  "nodes": [
+    {
+      "id": "farm_source",
+      "initial_resources": 30,
+      "trigger_mode": "automatic",
+      "data": {
+        "finite_source": true
+      },
+      "rate": 2,
+      "type": "source"
+    },
+    {
+      "id": "harvest_bin",
+      "capacity": 24,
+      "initial_resources": 0,
+      "trigger_mode": "automatic",
+      "rate": 2,
+      "type": "pool"
+    },
+    {
+      "id": "market_stall",
+      "initial_resources": 0,
+      "trigger_mode": "automatic",
+      "data": {
+        "trade_ratio": 2
+      },
+      "rate": 2,
+      "type": "trader"
+    },
+    {
+      "id": "coin_wallet",
+      "capacity": 48,
+      "initial_resources": 0,
+      "trigger_mode": "automatic",
+      "rate": 2,
+      "type": "pool"
+    },
+    {
+      "id": "treasury",
+      "initial_resources": 0,
+      "trigger_mode": "passive",
+      "rate": 99,
+      "type": "drain"
+    }
+  ],
+  "seed": 27,
+  "end": {
+    "max_ticks": 72,
+    "stop_when_idle": true
+  },
+  "editor_positions": {
+    "harvest_bin": {
+      "x": -200,
+      "y": 120
+    },
+    "market_stall": {
+      "x": 20,
+      "y": 120
+    },
+    "coin_wallet": {
+      "x": 240,
+      "y": 120
+    },
+    "treasury": {
+      "x": 460,
+      "y": 120
+    },
+    "farm_source": {
+      "x": -420,
+      "y": 120
+    }
+  }
+}

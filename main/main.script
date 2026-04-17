@@ -22,6 +22,6 @@ end
 
 function on_message(self, message_id, message, sender)
 	if message_id == hash("start") then
-		monarch.show("game_catch_me", { clear = true })
+		monarch.show("machinations_editor", { clear = true })
 	end
 end

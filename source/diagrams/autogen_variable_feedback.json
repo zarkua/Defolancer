@@ -1,0 +1,114 @@
+{
+  "seed": 13,
+  "connections": [
+    {
+      "id": "source_to_buffer",
+      "amount": 1,
+      "amount_expression": "burst",
+      "from": "source",
+      "to": "buffer",
+      "type": "resource"
+    },
+    {
+      "id": "buffer_to_sink",
+      "amount": 1,
+      "from": "buffer",
+      "to": "sink",
+      "type": "resource"
+    },
+    {
+      "id": "buffer_to_meter",
+      "action": "set_register",
+      "comparator": ">=",
+      "value": 0,
+      "scale": 1,
+      "from": "buffer",
+      "to": "meter",
+      "source_field": "resources",
+      "type": "state"
+    },
+    {
+      "id": "meter_to_burst",
+      "action": "set_variable",
+      "value_expression": "5",
+      "scale_expression": "if_else(register >= 10, 2, 1)",
+      "comparator": ">=",
+      "source_field": "register",
+      "target_variable": "burst",
+      "from": "meter",
+      "to": "source",
+      "register_op": "set",
+      "type": "state"
+    }
+  ],
+  "name": "Variable Feedback",
+  "editor_positions": {
+    "meter": {
+      "x": -60,
+      "y": -20
+    },
+    "source": {
+      "x": -340,
+      "y": 160
+    },
+    "sink": {
+      "x": 240,
+      "y": 160
+    },
+    "buffer": {
+      "x": -60,
+      "y": 160
+    }
+  },
+  "description": "Variable-driven amount expression with state connection writing variables.",
+  "variables": {
+    "burst": {
+      "expression": "if_else(tick % 3 == 0, 3, 1)",
+      "value": 1
+    }
+  },
+  "play_mode": "headless",
+  "end": {
+    "stop_when_idle": false,
+    "max_ticks": 80,
+    "conditions": [
+      {
+        "id": "meter_threshold",
+        "expression": "nodes.meter.register_value >= 12"
+      }
+    ]
+  },
+  "nodes": [
+    {
+      "id": "source",
+      "initial_resources": 30,
+      "trigger_mode": "automatic",
+      "data": {
+        "finite_source": true
+      },
+      "rate": 3,
+      "type": "source"
+    },
+    {
+      "id": "buffer",
+      "capacity": 15,
+      "initial_resources": 0,
+      "trigger_mode": "automatic",
+      "rate": 3,
+      "type": "pool"
+    },
+    {
+      "id": "meter",
+      "type": "register",
+      "trigger_mode": "passive",
+      "register_value": 0
+    },
+    {
+      "id": "sink",
+      "initial_resources": 0,
+      "trigger_mode": "passive",
+      "rate": 99,
+      "type": "drain"
+    }
+  ]
+}

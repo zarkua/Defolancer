@@ -1,0 +1,67 @@
+{
+  "connections": [
+    {
+      "id": "source_to_buffer",
+      "amount": 1,
+      "from": "source",
+      "to": "buffer",
+      "type": "resource"
+    },
+    {
+      "id": "buffer_to_sink",
+      "amount": 1,
+      "from": "buffer",
+      "to": "sink",
+      "type": "resource"
+    }
+  ],
+  "name": "Hourglass",
+  "editor_positions": {
+    "source": {
+      "x": -320,
+      "y": 120
+    },
+    "sink": {
+      "x": 200,
+      "y": 120
+    },
+    "buffer": {
+      "x": -60,
+      "y": 120
+    }
+  },
+  "end": {
+    "max_ticks": 20,
+    "stop_when_idle": true
+  },
+  "play_mode": "headless",
+  "seed": 1,
+  "nodes": [
+    {
+      "id": "source",
+      "initial_resources": 8,
+      "trigger_mode": "automatic",
+      "data": {
+        "finite_source": true
+      },
+      "rate": 1,
+      "type": "source"
+    },
+    {
+      "id": "buffer",
+      "capacity": 4,
+      "initial_resources": 0,
+      "trigger_mode": "automatic",
+      "rate": 1,
+      "type": "pool"
+    },
+    {
+      "id": "sink",
+      "initial_resources": 0,
+      "trigger_mode": "passive",
+      "rate": 1,
+      "type": "drain"
+    }
+  ],
+  "description": "Finite source drains into a sink through a bounded pool."
+}

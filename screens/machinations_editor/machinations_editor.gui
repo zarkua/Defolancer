@@ -1,0 +1,899 @@
+script: "/screens/machinations_editor/machinations_editor.gui_script"
+fonts {
+  name: "main_font"
+  font: "/assets/fonts/segoeui-20.font"
+}
+fonts {
+  name: "body_font"
+  font: "/assets/fonts/segoeui-20.font"
+}
+nodes {
+  position {
+  }
+  size {
+    x: 960.0
+    y: 720.0
+  }
+  color {
+    x: 0.96
+    y: 0.97
+    z: 0.985
+  }
+  type: TYPE_BOX
+  id: "canvas_bg"
+  xanchor: XANCHOR_LEFT
+  yanchor: YANCHOR_BOTTOM
+  pivot: PIVOT_SW
+  layer: "background"
+  inherit_alpha: true
+}
+nodes {
+  position {
+  }
+  size {
+    x: 960.0
+    y: 720.0
+  }
+  color {
+    x: 0.9
+    y: 0.92
+    z: 0.96
+    w: 0.24
+  }
+  type: TYPE_BOX
+  id: "canvas_tint"
+  xanchor: XANCHOR_LEFT
+  yanchor: YANCHOR_BOTTOM
+  pivot: PIVOT_SW
+  layer: "background"
+  inherit_alpha: true
+}
+nodes {
+  position {
+    x: 0.0
+    y: 720.0
+  }
+  size {
+    x: 960.0
+    y: 76.0
+  }
+  color {
+    x: 1.0
+    y: 1.0
+    z: 1.0
+  }
+  type: TYPE_BOX
+  id: "top_bar"
+  xanchor: XANCHOR_LEFT
+  yanchor: YANCHOR_TOP
+  pivot: PIVOT_NW
+  layer: "ui"
+  inherit_alpha: true
+}
+nodes {
+  position {
+    x: 0.0
+    y: 644.0
+  }
+  size {
+    x: 176.0
+    y: 568.0
+  }
+  color {
+    x: 0.97
+    y: 0.975
+    z: 0.985
+  }
+  type: TYPE_BOX
+  id: "left_panel"
+  xanchor: XANCHOR_LEFT
+  yanchor: YANCHOR_TOP
+  pivot: PIVOT_NW
+  layer: "ui"
+  inherit_alpha: true
+}
+nodes {
+  position {
+    x: 714.0
+    y: 644.0
+  }
+  size {
+    x: 246.0
+    y: 568.0
+  }
+  color {
+    x: 0.94
+    y: 0.95
+    z: 0.97
+  }
+  type: TYPE_BOX
+  id: "right_panel"
+  xanchor: XANCHOR_LEFT
+  yanchor: YANCHOR_TOP
+  pivot: PIVOT_NW
+  layer: "ui"
+  inherit_alpha: true
+}
+nodes {
+  position {
+    x: 176.0
+    y: 644.0
+  }
+  size {
+    x: 538.0
+    y: 416.0
+  }
+  color {
+    x: 1.0
+    y: 1.0
+    z: 1.0
+  }
+  type: TYPE_BOX
+  id: "canvas_view"
+  xanchor: XANCHOR_LEFT
+  yanchor: YANCHOR_TOP
+  pivot: PIVOT_NW
+  layer: "background"
+  inherit_alpha: true
+}
+nodes {
+  position {
+    x: 176.0
+    y: 0.0
+  }
+  size {
+    x: 784.0
+    y: 228.0
+  }
+  color {
+    x: 0.94
+    y: 0.95
+    z: 0.97
+  }
+  type: TYPE_BOX
+  id: "bottom_bar"
+  xanchor: XANCHOR_LEFT
+  yanchor: YANCHOR_BOTTOM
+  pivot: PIVOT_SW
+  layer: "ui"
+  inherit_alpha: true
+}
+nodes {
+  position {
+    x: 20.0
+    y: 692.0
+  }
+  scale {
+    x: 0.22
+    y: 0.22
+  }
+  size {
+    x: 620.0
+    y: 60.0
+  }
+  color {
+    x: 0.16
+    y: 0.2
+    z: 0.32
+  }
+  type: TYPE_TEXT
+  text: "Defolancer | Machinations-like Editor"
+  font: "main_font"
+  id: "title_text"
+  xanchor: XANCHOR_LEFT
+  yanchor: YANCHOR_TOP
+  pivot: PIVOT_NW
+  layer: "ui"
+  inherit_alpha: true
+}
+nodes {
+  position {
+    x: 632.0
+    y: 692.0
+  }
+  scale {
+    x: 0.36
+    y: 0.36
+  }
+  size {
+    x: 2000.0
+    y: 100.0
+  }
+  color {
+    x: 0.18
+    y: 0.24
+    z: 0.36
+  }
+  type: TYPE_TEXT
+  text: "Tick 0"
+  font: "body_font"
+  id: "hud_text"
+  xanchor: XANCHOR_LEFT
+  yanchor: YANCHOR_TOP
+  pivot: PIVOT_NW
+  layer: "ui"
+  inherit_alpha: true
+}
+nodes {
+  position {
+    x: 10.0
+    y: 612.0
+  }
+  scale {
+    x: 0.5
+    y: 0.5
+  }
+  size {
+    x: 600.0
+    y: 2000.0
+  }
+  color {
+    x: 0.23
+    y: 0.28
+    z: 0.38
+  }
+  type: TYPE_TEXT
+  text: "S source\nN pool\nG gate\nD drain\nQ queue\nE delay\nV register\nC link\nT regress\nDEL remove\nL load\nK save\nR reset"
+  font: "body_font"
+  id: "left_help_text"
+  xanchor: XANCHOR_LEFT
+  yanchor: YANCHOR_TOP
+  pivot: PIVOT_NW
+  line_break: true
+  layer: "ui"
+  inherit_alpha: true
+}
+nodes {
+  position {
+    x: 726.0
+    y: 610.0
+  }
+  scale {
+    x: 0.34
+    y: 0.34
+  }
+  size {
+    x: 800.0
+    y: 100.0
+  }
+  color {
+    x: 0.16
+    y: 0.2
+    z: 0.32
+  }
+  type: TYPE_TEXT
+  text: "Runtime / Inspector"
+  font: "body_font"
+  id: "status_title_text"
+  xanchor: XANCHOR_LEFT
+  yanchor: YANCHOR_TOP
+  pivot: PIVOT_NW
+  layer: "ui"
+  inherit_alpha: true
+}
+nodes {
+  position {
+    x: 724.0
+    y: 572.0
+  }
+  scale {
+    x: 0.25
+    y: 0.25
+  }
+  size {
+    x: 900.0
+    y: 1200.0
+  }
+  color {
+    x: 0.28
+    y: 0.33
+    z: 0.43
+  }
+  type: TYPE_TEXT
+  text: "Status"
+  font: "body_font"
+  id: "status_text"
+  xanchor: XANCHOR_LEFT
+  yanchor: YANCHOR_TOP
+  pivot: PIVOT_NW
+  line_break: true
+  layer: "ui"
+  inherit_alpha: true
+}
+nodes {
+  position {
+    x: 188.0
+    y: 220.0
+  }
+  size {
+    x: 520.0
+    y: 168.0
+  }
+  color {
+    x: 0.985
+    y: 0.99
+    z: 0.998
+  }
+  type: TYPE_BOX
+  id: "chart_area"
+  xanchor: XANCHOR_LEFT
+  yanchor: YANCHOR_TOP
+  pivot: PIVOT_NW
+  layer: "ui"
+  inherit_alpha: true
+}
+nodes {
+  position {
+    x: 190.0
+    y: 248.0
+  }
+  scale {
+    x: 0.25
+    y: 0.25
+  }
+  size {
+    x: 620.0
+    y: 100.0
+  }
+  color {
+    x: 0.2
+    y: 0.24
+    z: 0.34
+  }
+  type: TYPE_TEXT
+  text: "Resources"
+  font: "body_font"
+  id: "chart_title_text"
+  xanchor: XANCHOR_LEFT
+  yanchor: YANCHOR_TOP
+  pivot: PIVOT_NW
+  layer: "ui"
+  inherit_alpha: true
+}
+nodes {
+  position {
+    x: 718.0
+    y: 220.0
+  }
+  size {
+    x: 230.0
+    y: 168.0
+  }
+  color {
+    x: 0.985
+    y: 0.99
+    z: 0.998
+  }
+  type: TYPE_BOX
+  id: "distribution_area"
+  xanchor: XANCHOR_LEFT
+  yanchor: YANCHOR_TOP
+  pivot: PIVOT_NW
+  layer: "ui"
+  inherit_alpha: true
+}
+nodes {
+  position {
+    x: 718.0
+    y: 248.0
+  }
+  scale {
+    x: 0.24
+    y: 0.24
+  }
+  size {
+    x: 800.0
+    y: 100.0
+  }
+  color {
+    x: 0.2
+    y: 0.24
+    z: 0.34
+  }
+  type: TYPE_TEXT
+  text: "Batch Tick Distribution: no data"
+  font: "body_font"
+  id: "distribution_title_text"
+  xanchor: XANCHOR_LEFT
+  yanchor: YANCHOR_TOP
+  pivot: PIVOT_NW
+  layer: "ui"
+  inherit_alpha: true
+}
+nodes {
+  position {
+    x: 188.0
+    y: 82.0
+  }
+  scale {
+    x: 0.24
+    y: 0.24
+  }
+  size {
+    x: 4300.0
+    y: 100.0
+  }
+  color {
+    x: 0.22
+    y: 0.28
+    z: 0.4
+  }
+  type: TYPE_TEXT
+  text: "Config | Step | Play | Batch Plays | Reset | Open chart"
+  font: "body_font"
+  id: "footer_text"
+  xanchor: XANCHOR_LEFT
+  yanchor: YANCHOR_BOTTOM
+  pivot: PIVOT_SW
+  layer: "ui"
+  inherit_alpha: true
+}
+nodes {
+  position {
+    x: 184.0
+    y: 618.0
+  }
+  size {
+    x: 522.0
+    y: 28.0
+  }
+  color {
+    x: 0.91
+    y: 0.93
+    z: 0.97
+    w: 0.85
+  }
+  type: TYPE_BOX
+  id: "tools_bar_bg"
+  xanchor: XANCHOR_LEFT
+  yanchor: YANCHOR_TOP
+  pivot: PIVOT_NW
+  layer: "ui"
+  inherit_alpha: true
+}
+nodes {
+  position {
+    x: 192.0
+    y: 603.0
+  }
+  scale {
+    x: 0.22
+    y: 0.22
+  }
+  size {
+    x: 4200.0
+    y: 100.0
+  }
+  color {
+    x: 0.26
+    y: 0.3
+    z: 0.42
+  }
+  type: TYPE_TEXT
+  text: "Select | Move | Link | Zoom | Config Step Play Batch Reset"
+  font: "body_font"
+  id: "tools_bar_text"
+  xanchor: XANCHOR_LEFT
+  yanchor: YANCHOR_TOP
+  pivot: PIVOT_NW
+  layer: "ui"
+  inherit_alpha: true
+}
+nodes {
+  position {
+    x: 184.0
+    y: 76.0
+  }
+  size {
+    x: 522.0
+    y: 34.0
+  }
+  color {
+    x: 0.91
+    y: 0.93
+    z: 0.97
+    w: 0.9
+  }
+  type: TYPE_BOX
+  id: "play_bar_bg"
+  xanchor: XANCHOR_LEFT
+  yanchor: YANCHOR_BOTTOM
+  pivot: PIVOT_SW
+  layer: "ui"
+  inherit_alpha: true
+}
+nodes {
+  position {
+    x: 718.0
+    y: 452.0
+  }
+  size {
+    x: 230.0
+    y: 120.0
+  }
+  color {
+    x: 0.985
+    y: 0.99
+    z: 0.998
+  }
+  type: TYPE_BOX
+  id: "accuracy_box"
+  xanchor: XANCHOR_LEFT
+  yanchor: YANCHOR_TOP
+  pivot: PIVOT_NW
+  layer: "ui"
+  inherit_alpha: true
+}
+nodes {
+  position {
+    x: 722.0
+    y: 454.0
+  }
+  scale {
+    x: 0.24
+    y: 0.24
+  }
+  size {
+    x: 800.0
+    y: 100.0
+  }
+  color {
+    x: 0.2
+    y: 0.24
+    z: 0.34
+  }
+  type: TYPE_TEXT
+  text: "Accuracy Indicator"
+  font: "body_font"
+  id: "accuracy_label_text"
+  xanchor: XANCHOR_LEFT
+  yanchor: YANCHOR_TOP
+  pivot: PIVOT_NW
+  layer: "ui"
+  inherit_alpha: true
+}
+nodes {
+  position {
+    x: 722.0
+    y: 432.0
+  }
+  scale {
+    x: 0.22
+    y: 0.22
+  }
+  size {
+    x: 950.0
+    y: 700.0
+  }
+  color {
+    x: 0.25
+    y: 0.31
+    z: 0.42
+  }
+  type: TYPE_TEXT
+  text: "Run batch to compute accuracy indicator."
+  font: "body_font"
+  id: "accuracy_text"
+  xanchor: XANCHOR_LEFT
+  yanchor: YANCHOR_TOP
+  pivot: PIVOT_NW
+  line_break: true
+  layer: "ui"
+  inherit_alpha: true
+}
+nodes {
+  position {
+    x: -2048.0
+    y: -2048.0
+  }
+  size {
+    x: 8.0
+    y: 8.0
+  }
+  color {
+    x: 0.62
+    y: 0.66
+    z: 0.76
+    w: 0.2
+  }
+  type: TYPE_BOX
+  id: "grid_line_template"
+  layer: "grid"
+  inherit_alpha: true
+  enabled: false
+}
+nodes {
+  position {
+    x: -2048.0
+    y: -2048.0
+  }
+  size {
+    x: 10.0
+    y: 4.0
+  }
+  color {
+    x: 0.36
+    y: 0.58
+    z: 0.9
+  }
+  type: TYPE_BOX
+  id: "edge_template"
+  layer: "edges"
+  inherit_alpha: true
+  enabled: false
+}
+nodes {
+  position {
+    x: -2048.0
+    y: -2048.0
+  }
+  size {
+    x: 10.0
+    y: 3.0
+  }
+  color {
+    x: 0.43
+    y: 0.63
+    z: 0.91
+  }
+  type: TYPE_BOX
+  id: "chart_line_template"
+  layer: "ui"
+  inherit_alpha: true
+  enabled: false
+}
+nodes {
+  position {
+    x: -2048.0
+    y: -2048.0
+  }
+  size {
+    x: 16.0
+    y: 16.0
+  }
+  color {
+    x: 0.69
+    y: 0.74
+    z: 0.31
+    w: 0.95
+  }
+  type: TYPE_BOX
+  id: "chart_bar_template"
+  layer: "ui"
+  inherit_alpha: true
+  enabled: false
+}
+nodes {
+  position {
+    x: -2048.0
+    y: -2048.0
+  }
+  size {
+    x: 156.0
+    y: 64.0
+  }
+  color {
+    x: 0.74
+    y: 0.78
+    z: 0.9
+  }
+  type: TYPE_BOX
+  id: "node_box_template"
+  layer: "nodes"
+  inherit_alpha: true
+  enabled: false
+}
+nodes {
+  position {
+    x: -2048.0
+    y: -2024.0
+  }
+  scale {
+    x: 0.5
+    y: 0.5
+  }
+  size {
+    x: 900.0
+    y: 80.0
+  }
+  color {
+    x: 0.16
+    y: 0.2
+    z: 0.3
+  }
+  type: TYPE_TEXT
+  text: "pool"
+  font: "body_font"
+  id: "node_title_template"
+  pivot: PIVOT_N
+  layer: "nodes"
+  inherit_alpha: true
+  enabled: false
+}
+nodes {
+  position {
+    x: -2048.0
+    y: -2068.0
+  }
+  scale {
+    x: 0.42
+    y: 0.42
+  }
+  size {
+    x: 1000.0
+    y: 80.0
+  }
+  color {
+    x: 0.22
+    y: 0.3
+    z: 0.42
+  }
+  type: TYPE_TEXT
+  text: "r:0"
+  font: "body_font"
+  id: "node_value_template"
+  pivot: PIVOT_S
+  layer: "nodes"
+  inherit_alpha: true
+  enabled: false
+}
+nodes {
+  position {
+    x: -2048.0
+    y: -2048.0
+  }
+  scale {
+    x: 0.34
+    y: 0.34
+  }
+  size {
+    x: 220.0
+    y: 80.0
+  }
+  color {
+    x: 0.25
+    y: 0.32
+    z: 0.45
+  }
+  type: TYPE_TEXT
+  text: "P"
+  font: "body_font"
+  id: "node_icon_template"
+  pivot: PIVOT_W
+  layer: "nodes"
+  inherit_alpha: true
+  enabled: false
+}
+nodes {
+  position {
+    x: -2048.0
+    y: -2048.0
+  }
+  size {
+    x: 10.0
+    y: 10.0
+  }
+  color {
+    x: 0.5
+    y: 0.66
+    z: 0.9
+    w: 0.6
+  }
+  type: TYPE_BOX
+  id: "node_handle_template"
+  layer: "nodes"
+  inherit_alpha: true
+  enabled: false
+}
+nodes {
+  position {
+    x: -2400.0
+    y: -2400.0
+  }
+  size {
+    x: 120.0
+    y: 24.0
+  }
+  color {
+    x: 0.0
+    y: 0.0
+    z: 0.33333334
+  }
+  type: TYPE_BOX
+  id: "chrome_outer_template"
+  layer: "ui"
+  inherit_alpha: true
+  enabled: false
+}
+nodes {
+  position {
+    x: -2400.0
+    y: -2400.0
+  }
+  size {
+    x: 116.0
+    y: 20.0
+  }
+  color {
+    x: 0.73333335
+    y: 0.73333335
+    z: 1.0
+  }
+  type: TYPE_BOX
+  id: "chrome_inner_template"
+  layer: "ui"
+  inherit_alpha: true
+  enabled: false
+}
+nodes {
+  position {
+    x: -2400.0
+    y: -2400.0
+  }
+  scale {
+    x: 0.5
+    y: 0.5
+  }
+  size {
+    x: 420.0
+    y: 40.0
+  }
+  color {
+    x: 0.0
+    y: 0.0
+    z: 0.33333334
+  }
+  type: TYPE_TEXT
+  text: "Label"
+  font: "body_font"
+  id: "chrome_left_label_template"
+  pivot: PIVOT_NW
+  layer: "ui"
+  inherit_alpha: true
+  enabled: false
+}
+nodes {
+  position {
+    x: -2400.0
+    y: -2400.0
+  }
+  scale {
+    x: 0.5
+    y: 0.5
+  }
+  size {
+    x: 320.0
+    y: 40.0
+  }
+  color {
+    x: 0.0
+    y: 0.0
+    z: 0.33333334
+  }
+  type: TYPE_TEXT
+  text: "Label"
+  font: "body_font"
+  id: "chrome_center_label_template"
+  pivot: PIVOT_CENTER
+  layer: "ui"
+  inherit_alpha: true
+  enabled: false
+}
+layers {
+  name: "background"
+}
+layers {
+  name: "grid"
+}
+layers {
+  name: "edges"
+}
+layers {
+  name: "nodes"
+}
+layers {
+  name: "ui"
+}
+material: "/sharp_sprite/rgss/materials/gui.material"
+adjust_reference: ADJUST_REFERENCE_PARENT
+

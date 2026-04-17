@@ -19,10 +19,22 @@ This file documents the current local reimplementation scope in `modules/machina
 - Delayed transfers:
   - per-connection delay
   - per-node delay (for delay/queue-like behavior)
+- Resource flow semantics:
+  - `push` (default)
+  - `pull` flow mode on resource connections
+- Expression layer:
+  - dynamic variables (`variables` expressions)
+  - dynamic node fields (`rate/delay/capacity/register` expressions)
+  - dynamic connection fields (`amount/weight/delay` expressions)
+  - state-connection `condition/value/scale` expressions
+  - end-condition expression predicates
 - Batch runs:
   - deterministic seed stepping
   - aggregates (`min/max/mean`) for resources/registers
   - end-reason histogram
+- File adapters:
+  - JSON decode/encode for diagrams and reports
+  - runner wrappers for `run`/`batch` from JSON files
 
 ## Normalized node shape
 
@@ -83,10 +95,12 @@ This file documents the current local reimplementation scope in `modules/machina
 - `modules/machinations/examples/delay_queue.lua`
 - `modules/machinations/examples/gate_random.lua`
 - `modules/machinations/examples/register_end_condition.lua`
+- `modules/machinations/examples/pulling_flow.lua`
+- `modules/machinations/examples/variable_feedback.lua`
+- `source/diagrams/hourglass.json`
 
 ## Source corpus snapshot
 
 - Full sitemap fetch index: `source/machinations_sitemap_index.md`
 - Fetch failures: `source/machinations_sitemap_failures.md`
 - Raw pages folder: `source/raw/sitemaps/`
-

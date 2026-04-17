@@ -1,0 +1,152 @@
+{
+  "connections": [
+    {
+      "id": "loot_to_gate",
+      "amount": 1,
+      "from": "loot",
+      "to": "rarity_gate",
+      "type": "resource"
+    },
+    {
+      "id": "gate_to_common",
+      "amount": 1,
+      "from": "rarity_gate",
+      "to": "common_stock",
+      "type": "resource",
+      "weight": 70
+    },
+    {
+      "id": "gate_to_rare",
+      "amount": 1,
+      "from": "rarity_gate",
+      "to": "rare_stock",
+      "type": "resource",
+      "weight": 30
+    },
+    {
+      "id": "common_to_craft",
+      "amount": 1,
+      "from": "common_stock",
+      "to": "craft_station",
+      "type": "resource"
+    },
+    {
+      "id": "rare_to_craft",
+      "amount": 1,
+      "from": "rare_stock",
+      "to": "craft_station",
+      "type": "resource"
+    },
+    {
+      "id": "craft_to_item",
+      "amount": 1,
+      "from": "craft_station",
+      "to": "item_pool",
+      "type": "resource"
+    },
+    {
+      "id": "item_to_delivery",
+      "amount": 1,
+      "from": "item_pool",
+      "to": "delivery",
+      "type": "resource"
+    }
+  ],
+  "name": "Crafting System",
+  "play_mode": "headless",
+  "description": "Loot splits into rarity buckets before being crafted into finished items.",
+  "nodes": [
+    {
+      "id": "loot",
+      "initial_resources": 36,
+      "trigger_mode": "automatic",
+      "data": {
+        "finite_source": true
+      },
+      "rate": 3,
+      "type": "source"
+    },
+    {
+      "id": "rarity_gate",
+      "type": "gate",
+      "trigger_mode": "automatic",
+      "gate_mode": "random"
+    },
+    {
+      "id": "common_stock",
+      "capacity": 24,
+      "initial_resources": 0,
+      "trigger_mode": "automatic",
+      "rate": 2,
+      "type": "pool"
+    },
+    {
+      "id": "rare_stock",
+      "capacity": 16,
+      "initial_resources": 0,
+      "trigger_mode": "automatic",
+      "rate": 2,
+      "type": "pool"
+    },
+    {
+      "id": "craft_station",
+      "initial_resources": 0,
+      "trigger_mode": "automatic",
+      "data": {
+        "conversion_ratio": 1
+      },
+      "rate": 2,
+      "type": "converter"
+    },
+    {
+      "id": "item_pool",
+      "capacity": 30,
+      "initial_resources": 0,
+      "trigger_mode": "automatic",
+      "rate": 2,
+      "type": "pool"
+    },
+    {
+      "id": "delivery",
+      "initial_resources": 0,
+      "trigger_mode": "passive",
+      "rate": 99,
+      "type": "drain"
+    }
+  ],
+  "seed": 21,
+  "end": {
+    "max_ticks": 80,
+    "stop_when_idle": true
+  },
+  "editor_positions": {
+    "item_pool": {
+      "x": 660,
+      "y": 130
+    },
+    "delivery": {
+      "x": 880,
+      "y": 130
+    },
+    "loot": {
+      "x": -440,
+      "y": 130
+    },
+    "rarity_gate": {
+      "x": -220,
+      "y": 130
+    },
+    "common_stock": {
+      "x": 0,
+      "y": 130
+    },
+    "rare_stock": {
+      "x": 220,
+      "y": 130
+    },
+    "craft_station": {
+      "x": 440,
+      "y": 130
+    }
+  }
+}

@@ -1,0 +1,60 @@
+{
+  "name": "Hourglass JSON",
+  "description": "Minimal file-based example for runner/io layer.",
+  "play_mode": "headless",
+  "seed": 1,
+  "variables": {
+    "burst": {
+      "value": 1,
+      "expression": "if_else(tick % 2 == 0, 2, 1)"
+    }
+  },
+  "nodes": [
+    {
+      "id": "source",
+      "type": "source",
+      "trigger_mode": "automatic",
+      "initial_resources": 16,
+      "rate": 2,
+      "data": {
+        "finite_source": true
+      }
+    },
+    {
+      "id": "buffer",
+      "type": "pool",
+      "trigger_mode": "automatic",
+      "initial_resources": 0,
+      "capacity": 6,
+      "rate": 2
+    },
+    {
+      "id": "sink",
+      "type": "drain",
+      "trigger_mode": "passive",
+      "initial_resources": 0,
+      "rate": 99
+    }
+  ],
+  "connections": [
+    {
+      "id": "source_to_buffer",
+      "from": "source",
+      "to": "buffer",
+      "type": "resource",
+      "amount": 1,
+      "amount_expression": "burst"
+    },
+    {
+      "id": "buffer_to_sink",
+      "from": "buffer",
+      "to": "sink",
+      "type": "resource",
+      "amount": 1
+    }
+  ],
+  "end": {
+    "max_ticks": 40,
+    "stop_when_idle": true
+  }
+}

@@ -1,0 +1,98 @@
+local types = require("modules.machinations.types")
+
+return {
+	name = "Random Loot",
+	description = "Probabilistic loot flow tuned for prediction charts.",
+	play_mode = types.PLAY_MODE.HEADLESS,
+	seed = 11,
+	nodes = {
+		{
+			id = "source",
+			type = types.NODE.SOURCE,
+			trigger_mode = types.TRIGGER_MODE.AUTOMATIC,
+			initial_resources = 160,
+			rate = 2,
+			data = {
+				finite_source = true,
+			},
+		},
+		{
+			id = "rarity_gate",
+			type = types.NODE.GATE,
+			trigger_mode = types.TRIGGER_MODE.AUTOMATIC,
+			gate_mode = types.GATE_MODE.RANDOM,
+		},
+		{
+			id = "common_pool",
+			type = types.NODE.POOL,
+			trigger_mode = types.TRIGGER_MODE.AUTOMATIC,
+			initial_resources = 0,
+			capacity = 180,
+			rate = 2,
+		},
+		{
+			id = "rare_pool",
+			type = types.NODE.POOL,
+			trigger_mode = types.TRIGGER_MODE.AUTOMATIC,
+			initial_resources = 0,
+			capacity = 120,
+			rate = 2,
+		},
+		{
+			id = "sink",
+			type = types.NODE.DRAIN,
+			trigger_mode = types.TRIGGER_MODE.PASSIVE,
+			initial_resources = 0,
+			rate = 99,
+		},
+	},
+	connections = {
+		{
+			id = "source_to_gate",
+			from = "source",
+			to = "rarity_gate",
+			type = types.CONNECTION.RESOURCE,
+			amount = 1,
+		},
+		{
+			id = "gate_to_common",
+			from = "rarity_gate",
+			to = "common_pool",
+			type = types.CONNECTION.RESOURCE,
+			amount = 1,
+			weight = 75,
+		},
+		{
+			id = "gate_to_rare",
+			from = "rarity_gate",
+			to = "rare_pool",
+			type = types.CONNECTION.RESOURCE,
+			amount = 1,
+			weight = 25,
+		},
+		{
+			id = "common_to_sink",
+			from = "common_pool",
+			to = "sink",
+			type = types.CONNECTION.RESOURCE,
+			amount = 1,
+		},
+	},
+	["end"] = {
+		max_ticks = 220,
+		stop_when_idle = false,
+		conditions = {
+			{
+				id = "rare_target",
+				expression = "nodes.rare_pool.resources >= 28",
+			},
+		},
+	},
+	editor_positions = {
+		source = { x = -360, y = 120 },
+		rarity_gate = { x = -100, y = 120 },
+		common_pool = { x = 140, y = 180 },
+		rare_pool = { x = 140, y = 40 },
+		sink = { x = 390, y = 180 },
+	},
+}

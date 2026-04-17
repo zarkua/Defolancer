@@ -1,0 +1,107 @@
+{
+  "name": "Farming & Crafting Flow",
+  "description": "Farm output moves through a trader chain into currency.",
+  "play_mode": "headless",
+  "seed": 27,
+  "nodes": [
+    {
+      "id": "farm_source",
+      "type": "source",
+      "trigger_mode": "automatic",
+      "initial_resources": 30,
+      "rate": 2,
+      "data": {
+        "finite_source": true
+      }
+    },
+    {
+      "id": "harvest_bin",
+      "type": "pool",
+      "trigger_mode": "automatic",
+      "initial_resources": 0,
+      "capacity": 24,
+      "rate": 2
+    },
+    {
+      "id": "market_stall",
+      "type": "trader",
+      "trigger_mode": "automatic",
+      "initial_resources": 0,
+      "rate": 2,
+      "data": {
+        "trade_ratio": 2
+      }
+    },
+    {
+      "id": "coin_wallet",
+      "type": "pool",
+      "trigger_mode": "automatic",
+      "initial_resources": 0,
+      "capacity": 48,
+      "rate": 2
+    },
+    {
+      "id": "treasury",
+      "type": "drain",
+      "trigger_mode": "passive",
+      "initial_resources": 0,
+      "rate": 99
+    }
+  ],
+  "connections": [
+    {
+      "id": "farm_to_harvest",
+      "from": "farm_source",
+      "to": "harvest_bin",
+      "type": "resource",
+      "amount": 1
+    },
+    {
+      "id": "harvest_to_market",
+      "from": "harvest_bin",
+      "to": "market_stall",
+      "type": "resource",
+      "amount": 1
+    },
+    {
+      "id": "market_to_wallet",
+      "from": "market_stall",
+      "to": "coin_wallet",
+      "type": "resource",
+      "amount": 1
+    },
+    {
+      "id": "wallet_to_treasury",
+      "from": "coin_wallet",
+      "to": "treasury",
+      "type": "resource",
+      "amount": 1
+    }
+  ],
+  "end": {
+    "max_ticks": 72,
+    "stop_when_idle": true
+  },
+  "editor_positions": {
+    "farm_source": {
+      "x": -420,
+      "y": 140
+    },
+    "harvest_bin": {
+      "x": -180,
+      "y": 140
+    },
+    "market_stall": {
+      "x": 80,
+      "y": 140
+    },
+    "coin_wallet": {
+      "x": 340,
+      "y": 140
+    },
+    "treasury": {
+      "x": 580,
+      "y": 140
+    }
+  }
+}

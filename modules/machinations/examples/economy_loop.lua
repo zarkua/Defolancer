@@ -1,0 +1,128 @@
+local types = require("modules.machinations.types")
+
+return {
+	name = "Economy Loop",
+	description = "Raw output is refined, traded, and deposited as currency.",
+	play_mode = types.PLAY_MODE.HEADLESS,
+	seed = 41,
+	nodes = {
+		{
+			id = "ore_mine",
+			type = types.NODE.SOURCE,
+			trigger_mode = types.TRIGGER_MODE.AUTOMATIC,
+			initial_resources = 28,
+			rate = 2,
+			data = {
+				finite_source = true,
+			},
+		},
+		{
+			id = "ore_stock",
+			type = types.NODE.POOL,
+			trigger_mode = types.TRIGGER_MODE.AUTOMATIC,
+			initial_resources = 0,
+			capacity = 20,
+			rate = 2,
+		},
+		{
+			id = "smelter",
+			type = types.NODE.CONVERTER,
+			trigger_mode = types.TRIGGER_MODE.AUTOMATIC,
+			initial_resources = 0,
+			rate = 2,
+			data = {
+				conversion_ratio = 1,
+			},
+		},
+		{
+			id = "ingot_stock",
+			type = types.NODE.POOL,
+			trigger_mode = types.TRIGGER_MODE.AUTOMATIC,
+			initial_resources = 0,
+			capacity = 20,
+			rate = 2,
+		},
+		{
+			id = "market",
+			type = types.NODE.TRADER,
+			trigger_mode = types.TRIGGER_MODE.AUTOMATIC,
+			initial_resources = 0,
+			rate = 2,
+			data = {
+				trade_ratio = 3,
+			},
+		},
+		{
+			id = "coin_vault",
+			type = types.NODE.POOL,
+			trigger_mode = types.TRIGGER_MODE.AUTOMATIC,
+			initial_resources = 0,
+			capacity = 48,
+			rate = 2,
+		},
+		{
+			id = "bank",
+			type = types.NODE.DRAIN,
+			trigger_mode = types.TRIGGER_MODE.PASSIVE,
+			initial_resources = 0,
+			rate = 99,
+		},
+	},
+	connections = {
+		{
+			id = "mine_to_stock",
+			from = "ore_mine",
+			to = "ore_stock",
+			type = types.CONNECTION.RESOURCE,
+			amount = 1,
+		},
+		{
+			id = "stock_to_smelter",
+			from = "ore_stock",
+			to = "smelter",
+			type = types.CONNECTION.RESOURCE,
+			amount = 1,
+		},
+		{
+			id = "smelter_to_ingots",
+			from = "smelter",
+			to = "ingot_stock",
+			type = types.CONNECTION.RESOURCE,
+			amount = 1,
+		},
+		{
+			id = "ingots_to_market",
+			from = "ingot_stock",
+			to = "market",
+			type = types.CONNECTION.RESOURCE,
+			amount = 1,
+		},
+		{
+			id = "market_to_wallet",
+			from = "market",
+			to = "coin_vault",
+			type = types.CONNECTION.RESOURCE,
+			amount = 1,
+		},
+		{
+			id = "wallet_to_bank",
+			from = "coin_vault",
+			to = "bank",
+			type = types.CONNECTION.RESOURCE,
+			amount = 1,
+		},
+	},
+	["end"] = {
+		max_ticks = 84,
+		stop_when_idle = true,
+	},
+	editor_positions = {
+		ore_mine = { x = -440, y = 140 },
+		ore_stock = { x = -220, y = 140 },
+		smelter = { x = 0, y = 140 },
+		ingot_stock = { x = 220, y = 140 },
+		market = { x = 450, y = 140 },
+		coin_vault = { x = 680, y = 140 },
+		bank = { x = 900, y = 140 },
+	},
+}

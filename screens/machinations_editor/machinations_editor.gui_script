@@ -1,0 +1,1579 @@
+local MSG_EDITOR_RENDER_META = hash("editor_render_meta")
+local MSG_EDITOR_RENDER_NODES = hash("editor_render_nodes")
+local MSG_EDITOR_RENDER_EDGES = hash("editor_render_edges")
+local MSG_EDITOR_RENDER_CHART = hash("editor_render_chart")
+local MSG_EDITOR_RENDER_BATCH = hash("editor_render_batch")
+local MSG_EDITOR_POINTER = hash("editor_pointer")
+local MSG_EDITOR_COMMAND = hash("editor_command")
+
+local HASH_TOUCH = hash("touch")
+local HASH_MOUSE_LEFT = hash("mouse_button_left")
+local HASH_MOUSE_RIGHT = hash("mouse_button_right")
+local HASH_MOUSE_BUTTON_1 = hash("mouse_button_1")
+local HASH_MOUSE_BUTTON_2 = hash("mouse_button_2")
+local HASH_MOUSE_WHEEL_UP = hash("mouse_wheel_up")
+local HASH_MOUSE_WHEEL_DOWN = hash("mouse_wheel_down")
+
+local HASH_KEY_SPACE = hash("key_space")
+local HASH_KEY_ENTER = hash("key_enter")
+local HASH_KEY_B = hash("key_b")
+local HASH_KEY_I = hash("key_i")
+local HASH_KEY_N = hash("key_n")
+local HASH_KEY_P = hash("key_p")
+local HASH_KEY_S = hash("key_s")
+local HASH_KEY_G = hash("key_g")
+local HASH_KEY_D = hash("key_d")
+local HASH_KEY_Q = hash("key_q")
+local HASH_KEY_E = hash("key_e")
+local HASH_KEY_U = hash("key_u")
+local HASH_KEY_V = hash("key_v")
+local HASH_KEY_C = hash("key_c")
+local HASH_KEY_DELETE = hash("key_delete")
+local HASH_KEY_BACKSPACE = hash("key_backspace")
+local HASH_KEY_R = hash("key_r")
+local HASH_KEY_L = hash("key_l")
+local HASH_KEY_K = hash("key_k")
+local HASH_KEY_T = hash("key_t")
+
+local NODE_BOX_BASE_SCALE = 0.98
+local NODE_TITLE_BASE_SCALE = 0.52
+local NODE_VALUE_BASE_SCALE = 0.28
+local NODE_ICON_BASE_SCALE = 0.22
+local HANDLE_BASE_SCALE = 0.8
+local MINOR_GRID_STEP = 80
+local MAJOR_GRID_STEP = 320
+local GRID_EXTENT = 3600
+local PAGE_MARGIN = 18
+local LEFT_PANEL_WIDTH = 72
+local RIGHT_PANEL_WIDTH = 320
+local TOP_BAR_HEIGHT = 58
+local BOTTOM_BAR_HEIGHT = 0
+local TAB_HEADER_HEIGHT = 28
+local TAB_PANEL_HEIGHT = 182
+local ANALYTICS_HEIGHT = 220
+local CONTENT_GAP = 16
+local UI_PADDING = 12
+local BUTTON_GAP = 4
+
+local SIDE_TABS = {
+	{ key = "graph", label = "Inspect" },
+	{ key = "edit", label = "Actions" },
+	{ key = "file", label = "Files" },
+	{ key = "run", label = "Predict" },
+}
+
+local GRAPH_TOOL_BUTTONS = {
+	{ key = "select", label = "[]", command = "tool:select", center = true, scale = 0.42 },
+	{ key = "text", label = "T", command = "tool:text", center = true, scale = 0.56 },
+	{ key = "group", label = "GR", command = "tool:group", center = true, scale = 0.34 },
+	{ key = "chart", label = "CH", command = "tool:chart", center = true, scale = 0.28 },
+	{ key = "pool", label = "O", command = "tool:pool", center = true, scale = 0.76 },
+	{ key = "gate", label = "<>", command = "tool:gate", center = true, scale = 0.42 },
+	{ key = "resource", label = "->", command = "tool:resource", center = true, scale = 0.50 },
+	{ key = "state", label = "S>", command = "tool:state", center = true, scale = 0.34 },
+	{ key = "source", label = "/\\", command = "tool:source", center = true, scale = 0.36 },
+	{ key = "drain", label = "\\/", command = "tool:drain", center = true, scale = 0.36 },
+	{ key = "converter", label = ">|", command = "tool:converter", center = true, scale = 0.42 },
+	{ key = "trader", label = "><", command = "tool:trader", center = true, scale = 0.42 },
+	{ key = "delay", label = "D", command = "tool:delay", center = true, scale = 0.62 },
+	{ key = "register", label = "R", command = "tool:register", center = true, scale = 0.62 },
+	{ key = "end", label = "[]", command = "tool:end", center = true, scale = 0.42 },
+	{ key = "ap", label = "AP", command = "tool:ap", center = true, scale = 0.34 },
+}
+
+local EDIT_ACTION_BUTTONS = {
+	{ key = "select_all", label = "Select All (A)", command = nil },
+	{ key = "copy", label = "Copy (C)", command = nil },
+	{ key = "paste", label = "Paste (V)", command = nil },
+	{ key = "undo", label = "Undo (Z)", command = nil },
+	{ key = "redo", label = "Redo (Y)", command = nil },
+	{ key = "zoom", label = "Zoom (M)", command = nil },
+}
+
+local FILE_ACTION_BUTTONS = {
+	{ key = "new", label = "New (N)", command = "reset" },
+	{ key = "open", label = "Open (O)", command = "load" },
+	{ key = "import", label = "Import (I)", command = "import" },
+	{ key = "save", label = "Save (S)", command = "save" },
+	{ key = "export_selection", label = "Export Selection (E)", command = nil },
+	{ key = "save_svg", label = "Save as SVG (G)", command = nil },
+}
+
+local RUN_ACTION_BUTTONS = {
+	{ key = "quick_run", label = "Quick Play", command = "toggle_autoplay" },
+	{ key = "multiple_runs", label = "Batch x100", command = "batch" },
+	{ key = "auto_build", label = "Auto Build (P)", command = "autogen_next" },
+	{ key = "auto_verify", label = "Auto Verify (U)", command = "autoverify" },
+}
+
+local function clamp(value, min_value, max_value)
+	if value < min_value then
+		return min_value
+	end
+	if value > max_value then
+		return max_value
+	end
+	return value
+end
+
+local function hex_color(value, alpha)
+	local r = math.floor(value / 65536) % 256
+	local g = math.floor(value / 256) % 256
+	local b = value % 256
+	return vmath.vector4(r / 255, g / 255, b / 255, alpha or 1)
+end
+
+local function get_canvas_rect(self)
+	if self ~= nil and self.layout ~= nil then
+		local left = self.layout.canvas_x
+		local right = self.layout.canvas_x + self.layout.canvas_w
+		local bottom = self.layout.canvas_y - self.layout.canvas_h
+		local top = self.layout.canvas_y
+		return left, right, bottom, top
+	end
+
+	local width = gui.get_width()
+	local height = gui.get_height()
+
+	local left = PAGE_MARGIN + LEFT_PANEL_WIDTH + CONTENT_GAP
+	local right = width - PAGE_MARGIN - RIGHT_PANEL_WIDTH - CONTENT_GAP
+	local bottom = PAGE_MARGIN + BOTTOM_BAR_HEIGHT + ANALYTICS_HEIGHT + CONTENT_GAP
+	local top = height - PAGE_MARGIN - TOP_BAR_HEIGHT - CONTENT_GAP
+
+	if right - left < 220 then
+		local center_x = width * 0.5
+		left = center_x - 110
+		right = center_x + 110
+	end
+	if top - bottom < 220 then
+		local center_y = height * 0.5
+		bottom = center_y - 110
+		top = center_y + 110
+	end
+
+	return left, right, bottom, top
+end
+
+local function set_box_layout(node, x, y, w, h, z)
+	gui.set_position(node, vmath.vector3(x, y, z or 0))
+	gui.set_size(node, vmath.vector3(math.max(w, 1), math.max(h, 1), 0))
+end
+
+local function set_text_layout(node, x, y, sx, sy, z)
+	gui.set_position(node, vmath.vector3(x, y, z or 0))
+	gui.set_scale(node, vmath.vector3(sx, sy, 1))
+end
+
+local function update_responsive_layout(self)
+	local width = gui.get_width()
+	local height = gui.get_height()
+
+	local frame_left = PAGE_MARGIN
+	local frame_bottom = PAGE_MARGIN
+	local frame_width = width - PAGE_MARGIN * 2
+	local frame_height = height - PAGE_MARGIN * 2
+	local top_bar_h = TOP_BAR_HEIGHT
+	local left_rail_w = LEFT_PANEL_WIDTH
+	local inspector_w = RIGHT_PANEL_WIDTH
+	local top_y = height - PAGE_MARGIN
+	local content_top_y = top_y - top_bar_h - CONTENT_GAP
+	local content_h = math.max(frame_height - top_bar_h - CONTENT_GAP, 260)
+	local center_w = math.max(frame_width - left_rail_w - inspector_w - CONTENT_GAP * 2, 320)
+	local analytics_h = math.min(ANALYTICS_HEIGHT, math.max(math.floor(content_h * 0.35), 188))
+	local canvas_h = math.max(content_h - analytics_h - CONTENT_GAP, 220)
+	local left_x = frame_left
+	local canvas_x = frame_left + left_rail_w + CONTENT_GAP
+	local right_x = canvas_x + center_w + CONTENT_GAP
+	local analytics_y = content_top_y - canvas_h - CONTENT_GAP
+	local distribution_w = math.max(math.floor(center_w * 0.28), 190)
+	local chart_w = math.max(center_w - distribution_w - CONTENT_GAP, 240)
+	local action_y = content_top_y - 50
+	local action_h = 146
+	local accuracy_box_h = 92
+	local accuracy_box_y = action_y - action_h - 18
+	local inspector_y = accuracy_box_y - accuracy_box_h - 18
+
+	self.layout = {
+		frame_left = frame_left,
+		frame_bottom = frame_bottom,
+		frame_width = frame_width,
+		frame_height = frame_height,
+		top_y = top_y,
+		top_bar_h = top_bar_h,
+		content_top_y = content_top_y,
+		content_h = content_h,
+		left_x = left_x,
+		left_y = content_top_y,
+		left_w = left_rail_w,
+		left_h = content_h,
+		canvas_x = canvas_x,
+		canvas_y = content_top_y,
+		canvas_w = center_w,
+		canvas_h = canvas_h,
+		right_x = right_x,
+		right_y = content_top_y,
+		right_w = inspector_w,
+		right_h = content_h,
+		chart_x = canvas_x,
+		chart_y = analytics_y,
+		chart_w = chart_w,
+		chart_h = analytics_h,
+		distribution_x = canvas_x + chart_w + CONTENT_GAP,
+		distribution_y = analytics_y,
+		distribution_w = distribution_w,
+		distribution_h = analytics_h,
+		tab_panel_y = content_top_y - 14,
+		tab_panel_h = TAB_HEADER_HEIGHT,
+		action_y = action_y,
+		action_h = action_h,
+		accuracy_y = accuracy_box_y,
+		accuracy_h = accuracy_box_h,
+		inspector_y = inspector_y,
+		inspector_h = math.max(inspector_y - frame_bottom, 180),
+	}
+
+	set_box_layout(self.canvas_bg, 0, 0, width, height)
+	set_box_layout(self.canvas_tint, 0, 0, width, height)
+	set_box_layout(self.top_bar, frame_left, top_y, frame_width, top_bar_h)
+	set_box_layout(self.left_panel, left_x, content_top_y, left_rail_w, content_h)
+	set_box_layout(self.canvas_view, canvas_x, content_top_y, center_w, canvas_h)
+	set_box_layout(self.bottom_bar, -300, -300, 1, 1)
+	set_box_layout(self.right_panel, right_x, content_top_y, inspector_w, content_h)
+
+	gui.set_color(self.canvas_bg, hex_color(0xEEF3F9))
+	gui.set_color(self.canvas_tint, vmath.vector4(0.76, 0.84, 0.96, 0.08))
+	gui.set_color(self.top_bar, hex_color(0xFBFCFE))
+	gui.set_color(self.left_panel, hex_color(0xFBFCFE))
+	gui.set_color(self.canvas_view, hex_color(0xFCFDFE))
+	gui.set_color(self.bottom_bar, vmath.vector4(0, 0, 0, 0))
+	gui.set_color(self.right_panel, hex_color(0xFBFCFE))
+
+	set_text_layout(self.title_text, frame_left + 20, top_y - 13, 0.94, 0.94)
+	set_text_layout(self.hud_text, frame_left + 22, top_y - 39, 0.34, 0.34)
+	set_text_layout(self.left_help_text, frame_left + 196, top_y - 18, 0.48, 0.48)
+	gui.set_size(self.title_text, vmath.vector3(180, 34, 0))
+	gui.set_size(self.hud_text, vmath.vector3(360, 20, 0))
+	gui.set_size(self.left_help_text, vmath.vector3(math.max(frame_width - 520, 240), 28, 0))
+	gui.set_color(self.title_text, hex_color(0x10233A))
+	gui.set_color(self.hud_text, hex_color(0x71839A))
+	gui.set_color(self.left_help_text, hex_color(0x506175))
+
+	set_box_layout(self.tools_bar_bg, -400, -400, 1, 1)
+	set_text_layout(self.tools_bar_text, -400, -400, 0.1, 0.1)
+	gui.set_color(self.tools_bar_bg, vmath.vector4(0, 0, 0, 0))
+	gui.set_color(self.tools_bar_text, vmath.vector4(0, 0, 0, 0))
+
+	set_box_layout(self.play_bar_bg, -400, -400, 1, 1)
+	set_text_layout(self.footer_text, -400, -400, 0.1, 0.1)
+	gui.set_color(self.play_bar_bg, vmath.vector4(0, 0, 0, 0))
+	gui.set_color(self.footer_text, vmath.vector4(0, 0, 0, 0))
+
+	set_box_layout(self.chart_area, self.layout.chart_x, self.layout.chart_y, self.layout.chart_w, self.layout.chart_h)
+	set_box_layout(self.distribution_area, self.layout.distribution_x, self.layout.distribution_y, self.layout.distribution_w, self.layout.distribution_h)
+	set_box_layout(self.accuracy_box, right_x + 16, accuracy_box_y, inspector_w - 32, accuracy_box_h)
+	set_text_layout(self.chart_title_text, self.layout.chart_x + 16, self.layout.chart_y - 16, 0.46, 0.46)
+	set_text_layout(self.distribution_title_text, self.layout.distribution_x + 16, self.layout.distribution_y - 16, 0.46, 0.46)
+	set_text_layout(self.accuracy_label_text, right_x + 30, accuracy_box_y - 16, 0.42, 0.42)
+	set_text_layout(self.accuracy_text, right_x + 30, accuracy_box_y - 48, 0.34, 0.34)
+	gui.set_size(self.chart_title_text, vmath.vector3(self.layout.chart_w - 32, 24, 0))
+	gui.set_size(self.distribution_title_text, vmath.vector3(self.layout.distribution_w - 32, 24, 0))
+	gui.set_size(self.accuracy_label_text, vmath.vector3(inspector_w - 60, 24, 0))
+	gui.set_size(self.accuracy_text, vmath.vector3(inspector_w - 60, accuracy_box_h - 34, 0))
+	gui.set_color(self.chart_area, hex_color(0xFFFFFF))
+	gui.set_color(self.distribution_area, hex_color(0xFFFFFF))
+	gui.set_color(self.accuracy_box, hex_color(0xF6FAFE))
+	gui.set_color(self.chart_title_text, hex_color(0x10233A))
+	gui.set_color(self.distribution_title_text, hex_color(0x10233A))
+	gui.set_color(self.accuracy_label_text, hex_color(0x10233A))
+	gui.set_color(self.accuracy_text, hex_color(0x63788F))
+
+	set_text_layout(self.status_title_text, right_x + 18, inspector_y - 10, 0.58, 0.58)
+	set_text_layout(self.status_text, right_x + 18, inspector_y - 34, 0.32, 0.32)
+	gui.set_size(self.status_title_text, vmath.vector3(inspector_w - 36, 28, 0))
+	gui.set_size(self.status_text, vmath.vector3(inspector_w - 36, math.max(inspector_y - frame_bottom - 36, 40), 0))
+	gui.set_color(self.status_title_text, hex_color(0x10233A))
+	gui.set_color(self.status_text, hex_color(0x6A7A8D))
+end
+
+local function world_to_screen(self, world_x, world_y)
+	local left, right, bottom, top = get_canvas_rect(self)
+	local center_x = (left + right) * 0.5
+	local center_y = (bottom + top) * 0.5
+	local screen_x = (world_x - self.camera_x) * self.camera_zoom + center_x
+	local screen_y = (world_y - self.camera_y) * self.camera_zoom + center_y
+	return screen_x, screen_y
+end
+
+local function ellipsize(text, max_len)
+	if text == nil then
+		return "-"
+	end
+	if #text <= max_len then
+		return text
+	end
+	return string.sub(text, 1, max_len - 3) .. "..."
+end
+
+local function is_left_button(action_id)
+	return action_id == HASH_TOUCH or action_id == HASH_MOUSE_LEFT or action_id == HASH_MOUSE_BUTTON_1
+end
+
+local function is_right_button(action_id)
+	return action_id == HASH_MOUSE_RIGHT or action_id == HASH_MOUSE_BUTTON_2
+end
+
+local function send_pointer(self, phase, button, x, y, dx, dy, delta)
+	msg.post(".", MSG_EDITOR_POINTER, {
+		phase = phase,
+		button = button,
+		x = x or 0,
+		y = y or 0,
+		dx = dx or 0,
+		dy = dy or 0,
+		delta = delta or 0,
+		viewport_w = gui.get_width(),
+		viewport_h = gui.get_height(),
+	})
+end
+
+local function send_command(command)
+	msg.post(".", MSG_EDITOR_COMMAND, { command = command })
+end
+
+local function node_color(node)
+	if node.visual_only then
+		if node.node_type == "legacy_chart" then
+			return vmath.vector4(1, 1, 1, 0.98)
+		end
+		if node.node_type == "legacy_groupbox" then
+			return vmath.vector4(0.8, 0.84, 0.96, 0.16)
+		end
+		if node.node_type == "legacy_textlabel" then
+			return vmath.vector4(1, 1, 1, 0)
+		end
+		if node.node_type == "legacy_endcondition" then
+			return vmath.vector4(0.95, 0.77, 0.75, 0.92)
+		end
+		if node.node_type == "legacy_artificialplayer" then
+			return vmath.vector4(0.8, 0.84, 0.95, 0.94)
+		end
+		return vmath.vector4(0.72, 0.79, 0.9, 0.92)
+	end
+	if not node.enabled then
+		return vmath.vector4(0.92, 0.94, 0.97, 1)
+	end
+
+	if node.node_type == "source" then
+		return vmath.vector4(0.89, 0.97, 0.93, 1)
+	end
+	if node.node_type == "drain" then
+		return vmath.vector4(0.99, 0.92, 0.92, 1)
+	end
+	if node.node_type == "gate" then
+		return vmath.vector4(0.98, 0.95, 0.86, 1)
+	end
+	if node.node_type == "register" then
+		return vmath.vector4(0.91, 0.95, 0.99, 1)
+	end
+	if node.node_type == "converter" or node.node_type == "trader" then
+		return vmath.vector4(0.94, 0.95, 0.99, 1)
+	end
+	return vmath.vector4(0.96, 0.97, 0.99, 1)
+end
+
+local function edge_color(edge)
+	if edge.visual_only then
+		if edge.connection_type == "state" then
+			return vmath.vector4(0.95, 0.56, 0.2, 0.55)
+		end
+		return vmath.vector4(0.39, 0.61, 0.9, 0.48)
+	end
+	if edge.connection_type == "state" then
+		return vmath.vector4(0.96, 0.58, 0.22, 0.95)
+	end
+	if edge.flow_mode == "pull" then
+		return vmath.vector4(0.35, 0.75, 0.62, 0.95)
+	end
+	return vmath.vector4(0.33, 0.56, 0.92, 0.95)
+end
+
+local function format_node_title(node)
+	if node.node_type == "legacy_groupbox" then
+		return ellipsize(node.title or node.id, 24)
+	end
+	if node.node_type == "legacy_textlabel" then
+		return node.title or node.id
+	end
+	return string.format("%s", ellipsize(node.title or node.id, 18))
+end
+
+local function format_node_value(node)
+	if node.node_type == "legacy_groupbox" or node.node_type == "legacy_textlabel" then
+		return ""
+	end
+	if type(node.value_text) == "string" and node.value_text ~= "" then
+		return node.value_text
+	end
+	return string.format("%d", math.floor(node.resources or 0))
+end
+
+local function node_dimensions(node, box_scale)
+	local width = tonumber(node.width) or 156
+	local height = tonumber(node.height) or 64
+	return math.max(width * box_scale, 12), math.max(height * box_scale, 12)
+end
+
+local function node_icon_color(node)
+	if node.visual_only and node.node_type == "legacy_chart" then
+		return vmath.vector4(0.13, 0.18, 0.28, 0.85)
+	end
+	if node.visual_only and node.node_type == "legacy_textlabel" then
+		return vmath.vector4(0, 0, 0, 0)
+	end
+	if node.node_type == "source" then
+		return vmath.vector4(0.16, 0.53, 0.34, 0.96)
+	end
+	if node.node_type == "drain" then
+		return vmath.vector4(0.76, 0.25, 0.22, 0.96)
+	end
+	if node.node_type == "gate" then
+		return vmath.vector4(0.71, 0.53, 0.08, 0.96)
+	end
+	if node.node_type == "register" then
+		return vmath.vector4(0.17, 0.42, 0.77, 0.96)
+	end
+	return vmath.vector4(0.22, 0.32, 0.46, 0.95)
+end
+
+local function node_title_color(node)
+	if node.visual_only and node.node_type == "legacy_textlabel" then
+		return hex_color(0x10233A)
+	end
+	return vmath.vector4(0.08, 0.14, 0.22, 1)
+end
+
+local function node_value_color(node)
+	if node.visual_only and node.node_type == "legacy_chart" then
+		return vmath.vector4(0.24, 0.29, 0.4, 0.9)
+	end
+	return vmath.vector4(0.38, 0.47, 0.59, 1)
+end
+
+local function ensure_node_view(self, node_id)
+	local existing = self.node_views[node_id]
+	if existing ~= nil then
+		return existing
+	end
+
+	local box = gui.clone(self.node_box_template)
+	local title = gui.clone(self.node_title_template)
+	local value = gui.clone(self.node_value_template)
+	local icon = gui.clone(self.node_icon_template)
+	local handle = gui.clone(self.node_handle_template)
+	gui.set_enabled(box, true)
+	gui.set_enabled(title, true)
+	gui.set_enabled(value, true)
+	gui.set_enabled(icon, true)
+	gui.set_enabled(handle, true)
+
+	local created = {
+		box = box,
+		title = title,
+		value = value,
+		icon = icon,
+		handle = handle,
+	}
+	self.node_views[node_id] = created
+	return created
+end
+
+local function ensure_edge_view(self, edge_id)
+	local existing = self.edge_views[edge_id]
+	if existing ~= nil then
+		return existing
+	end
+
+	local label = gui.clone(self.node_value_template)
+	gui.set_enabled(label, true)
+	local created = {
+		segments = {},
+		label = label,
+	}
+	self.edge_views[edge_id] = created
+	return created
+end
+
+local function delete_node_view(view)
+	gui.delete_node(view.box)
+	gui.delete_node(view.title)
+	gui.delete_node(view.value)
+	gui.delete_node(view.icon)
+	gui.delete_node(view.handle)
+end
+
+local function ensure_edge_segment_view(self, edge_view, index)
+	local existing = edge_view.segments[index]
+	if existing ~= nil then
+		return existing
+	end
+
+	local line = gui.clone(self.edge_template)
+	gui.set_enabled(line, true)
+	edge_view.segments[index] = line
+	return line
+end
+
+local function trim_extra_edge_segments(edge_view, used_count)
+	for index = #edge_view.segments, used_count + 1, -1 do
+		gui.delete_node(edge_view.segments[index])
+		edge_view.segments[index] = nil
+	end
+end
+
+local function delete_edge_view(edge_view)
+	for _, segment in ipairs(edge_view.segments or {}) do
+		gui.delete_node(segment)
+	end
+	if edge_view.label ~= nil then
+		gui.delete_node(edge_view.label)
+	end
+end
+
+local function ensure_grid_line(self, line_id)
+	local existing = self.grid_views[line_id]
+	if existing ~= nil then
+		return existing
+	end
+
+	local line = gui.clone(self.grid_line_template)
+	gui.set_enabled(line, true)
+	self.grid_views[line_id] = line
+	return line
+end
+
+local function render_grid(self)
+	local line_index = 0
+	local width = gui.get_width()
+	local height = gui.get_height()
+	local left, right, bottom, top = get_canvas_rect(self)
+	local canvas_width = right - left
+	local canvas_height = top - bottom
+	local zoom = self.camera_zoom
+	local center_world_x = self.camera_x
+	local center_world_y = self.camera_y
+
+	local min_world_x = center_world_x - (canvas_width * 0.5) / zoom
+	local max_world_x = center_world_x + (canvas_width * 0.5) / zoom
+	local min_world_y = center_world_y - (canvas_height * 0.5) / zoom
+	local max_world_y = center_world_y + (canvas_height * 0.5) / zoom
+
+	local from_x = math.floor((min_world_x - GRID_EXTENT) / MINOR_GRID_STEP) * MINOR_GRID_STEP
+	local to_x = math.ceil((max_world_x + GRID_EXTENT) / MINOR_GRID_STEP) * MINOR_GRID_STEP
+	local from_y = math.floor((min_world_y - GRID_EXTENT) / MINOR_GRID_STEP) * MINOR_GRID_STEP
+	local to_y = math.ceil((max_world_y + GRID_EXTENT) / MINOR_GRID_STEP) * MINOR_GRID_STEP
+
+	for world_x = from_x, to_x, MINOR_GRID_STEP do
+		line_index = line_index + 1
+		local line = ensure_grid_line(self, line_index)
+		local x, _ = world_to_screen(self, world_x, center_world_y)
+		local is_major = world_x % MAJOR_GRID_STEP == 0
+		local alpha = is_major and 0.18 or 0.06
+		local thickness = is_major and 1.2 or 1
+		gui.set_position(line, vmath.vector3(x, bottom + canvas_height * 0.5, 0))
+		gui.set_size(line, vmath.vector3(thickness, canvas_height, 0))
+		gui.set_color(line, vmath.vector4(0.62, 0.7, 0.82, alpha))
+	end
+
+	for world_y = from_y, to_y, MINOR_GRID_STEP do
+		line_index = line_index + 1
+		local line = ensure_grid_line(self, line_index)
+		local _, y = world_to_screen(self, center_world_x, world_y)
+		local is_major = world_y % MAJOR_GRID_STEP == 0
+		local alpha = is_major and 0.18 or 0.06
+		local thickness = is_major and 1.2 or 1
+		gui.set_position(line, vmath.vector3(left + canvas_width * 0.5, y, 0))
+		gui.set_size(line, vmath.vector3(canvas_width, thickness, 0))
+		gui.set_color(line, vmath.vector4(0.62, 0.7, 0.82, alpha))
+	end
+
+	for index, line in pairs(self.grid_views) do
+		if index > line_index then
+			gui.delete_node(line)
+			self.grid_views[index] = nil
+		end
+	end
+end
+
+local function render_nodes(self, nodes)
+	local seen = {}
+	for _, node in ipairs(nodes or {}) do
+		local view = ensure_node_view(self, node.id)
+		local x, y = world_to_screen(self, node.x, node.y)
+		local box_scale = clamp(self.camera_zoom * 0.88, 0.72, 1.18)
+		local text_scale = clamp(self.camera_zoom * 0.96, 0.82, 1.22)
+		local width, height = node_dimensions(node, box_scale)
+		local box_color = node_color(node)
+		if node.selected then
+			box_color = vmath.vector4(0.86, 0.92, 1, 1)
+		end
+
+		gui.set_position(view.box, vmath.vector3(x, y, 0))
+		gui.set_size(view.box, vmath.vector3(width, height, 0))
+		gui.set_scale(view.box, vmath.vector3(1, 1, 1))
+		gui.set_color(view.box, box_color)
+
+		local title_x = x + width * 0.08
+		local title_y = y + height * 0.22
+		if node.node_type == "legacy_textlabel" then
+			title_x = x
+			title_y = y + 6
+		elseif node.node_type == "legacy_groupbox" then
+			title_x = x - width * 0.44
+			title_y = y + height * 0.43
+		end
+		gui.set_position(view.title, vmath.vector3(title_x, title_y, 0))
+		gui.set_scale(view.title, vmath.vector3(NODE_TITLE_BASE_SCALE * text_scale, NODE_TITLE_BASE_SCALE * text_scale, 1))
+		gui.set_text(view.title, format_node_title(node))
+		gui.set_color(view.title, node_title_color(node))
+
+		local value_x = x + width * 0.08
+		local value_y = y - height * 0.26
+		if node.node_type == "legacy_chart" then
+			value_x = x - width * 0.42
+			value_y = y - height * 0.36
+		end
+		gui.set_position(view.value, vmath.vector3(value_x, value_y, 0))
+		gui.set_scale(view.value, vmath.vector3(NODE_VALUE_BASE_SCALE * text_scale, NODE_VALUE_BASE_SCALE * text_scale, 1))
+		gui.set_text(view.value, format_node_value(node))
+		gui.set_color(view.value, node_value_color(node))
+
+		local icon_x = x - width * 0.38
+		local icon_y = y + height * 0.16
+		if node.node_type == "legacy_groupbox" or node.node_type == "legacy_textlabel" then
+			icon_x = x
+			icon_y = y
+		end
+		gui.set_position(view.icon, vmath.vector3(icon_x, icon_y, 0))
+		gui.set_scale(view.icon, vmath.vector3(NODE_ICON_BASE_SCALE * text_scale, NODE_ICON_BASE_SCALE * text_scale, 1))
+		gui.set_text(view.icon, node.node_type == "legacy_textlabel" and "" or (node.icon or "?"))
+		gui.set_color(view.icon, node_icon_color(node))
+
+		gui.set_position(view.handle, vmath.vector3(x + width * 0.5 + 10, y, 0))
+		gui.set_scale(view.handle, vmath.vector3(HANDLE_BASE_SCALE * box_scale, HANDLE_BASE_SCALE * box_scale, 1))
+		if node.visual_only then
+			gui.set_color(view.handle, vmath.vector4(0, 0, 0, 0))
+		elseif node.link_source then
+			gui.set_color(view.handle, vmath.vector4(0.96, 0.58, 0.22, 1))
+		elseif node.selected then
+			gui.set_color(view.handle, vmath.vector4(0.28, 0.52, 0.92, 1))
+		else
+			gui.set_color(view.handle, vmath.vector4(0.53, 0.64, 0.78, 0.42))
+		end
+
+		seen[node.id] = true
+	end
+
+	for node_id, view in pairs(self.node_views) do
+		if not seen[node_id] then
+			delete_node_view(view)
+			self.node_views[node_id] = nil
+		end
+	end
+end
+
+local function render_edges(self, edges)
+	local seen = {}
+	for _, edge in ipairs(edges or {}) do
+		local edge_view = ensure_edge_view(self, edge.id)
+		local points = {}
+		for _, point in ipairs(edge.points or {}) do
+			local px, py = world_to_screen(self, point.x, point.y)
+			points[#points + 1] = { x = px, y = py }
+		end
+		local used_segments = 0
+		local label_pos = nil
+		for index = 1, #points - 1 do
+			local from_point = points[index]
+			local to_point = points[index + 1]
+			local dx = to_point.x - from_point.x
+			local dy = to_point.y - from_point.y
+			local length = math.sqrt(dx * dx + dy * dy)
+			if length > 0.1 then
+				used_segments = used_segments + 1
+				local line = ensure_edge_segment_view(self, edge_view, used_segments)
+				local angle = math.atan2(dy, dx)
+				local thickness = clamp((edge.visual_only and 1.4 or 1.8) * self.camera_zoom, 1.0, edge.visual_only and 2.1 or 2.8)
+				gui.set_position(line, vmath.vector3((from_point.x + to_point.x) * 0.5, (from_point.y + to_point.y) * 0.5, 0))
+				gui.set_size(line, vmath.vector3(length, thickness, 0))
+				gui.set_rotation(line, vmath.quat_rotation_z(angle))
+				gui.set_color(line, edge_color(edge))
+				if label_pos == nil and index >= math.floor(#points * 0.5) then
+					label_pos = {
+						x = (from_point.x + to_point.x) * 0.5,
+						y = (from_point.y + to_point.y) * 0.5,
+					}
+				end
+			end
+		end
+		trim_extra_edge_segments(edge_view, used_segments)
+		if type(edge.label) == "string" and edge.label ~= "" and label_pos ~= nil then
+			gui.set_position(edge_view.label, vmath.vector3(label_pos.x, label_pos.y + 10, 0))
+			gui.set_scale(edge_view.label, vmath.vector3(0.18, 0.18, 1))
+			gui.set_text(edge_view.label, edge.label)
+			gui.set_color(edge_view.label, edge.visual_only and vmath.vector4(0.12, 0.18, 0.3, 0.72) or vmath.vector4(0.12, 0.18, 0.3, 0.92))
+		else
+			gui.set_text(edge_view.label, "")
+			gui.set_color(edge_view.label, vmath.vector4(0, 0, 0, 0))
+		end
+
+		seen[edge.id] = true
+	end
+
+	for edge_id, edge_view in pairs(self.edge_views) do
+		if not seen[edge_id] then
+			delete_edge_view(edge_view)
+			self.edge_views[edge_id] = nil
+		end
+	end
+end
+
+local function area_rect_nw(node, padding)
+	local pos = gui.get_position(node)
+	local size = gui.get_size(node)
+	padding = padding or 0
+	return {
+		left = pos.x + padding,
+		right = pos.x + size.x - padding,
+		top = pos.y - padding,
+		bottom = pos.y - size.y + padding,
+	}
+end
+
+local function ensure_chart_line_view(self, index)
+	local existing = self.chart_line_views[index]
+	if existing ~= nil then
+		return existing
+	end
+
+	local line = gui.clone(self.chart_line_template)
+	gui.set_enabled(line, true)
+	self.chart_line_views[index] = line
+	return line
+end
+
+local function ensure_distribution_bar_view(self, index)
+	local existing = self.distribution_bar_views[index]
+	if existing ~= nil then
+		return existing
+	end
+
+	local bar = gui.clone(self.chart_bar_template)
+	gui.set_enabled(bar, true)
+	self.distribution_bar_views[index] = bar
+	return bar
+end
+
+local function trim_extra_views(views, used_count)
+	for index, node in pairs(views) do
+		if index > used_count then
+			gui.delete_node(node)
+			views[index] = nil
+		end
+	end
+end
+
+local function ensure_button_view(self, views, index, centered)
+	local existing = views[index]
+	if existing ~= nil and existing.centered == centered then
+		return existing
+	end
+	if existing ~= nil then
+		gui.delete_node(existing.outer)
+		gui.delete_node(existing.inner)
+		gui.delete_node(existing.label)
+		views[index] = nil
+	end
+
+	local label_template = centered and self.chrome_center_label_template or self.chrome_left_label_template
+	local outer = gui.clone(self.chrome_outer_template)
+	local inner = gui.clone(self.chrome_inner_template)
+	local label = gui.clone(label_template)
+	gui.set_enabled(outer, true)
+	gui.set_enabled(inner, true)
+	gui.set_enabled(label, true)
+
+	local created = {
+		outer = outer,
+		inner = inner,
+		label = label,
+		command = nil,
+		key = nil,
+		centered = centered,
+	}
+	views[index] = created
+	return created
+end
+
+local function trim_extra_button_views(views, used_count)
+	for index, view in pairs(views) do
+		if index > used_count then
+			gui.delete_node(view.outer)
+			gui.delete_node(view.inner)
+			gui.delete_node(view.label)
+			views[index] = nil
+		end
+	end
+end
+
+local function set_button_view_layout(view, x, y, w, h, label, scale, selected, enabled)
+	local cx = x + w * 0.5
+	local cy = y - h * 0.5
+	local outer_color = enabled == false and hex_color(0xDCE4EF) or (selected and hex_color(0x8EB6FF) or hex_color(0xD8E1EC))
+	local inner_color = enabled == false and hex_color(0xF0F4F8) or (selected and hex_color(0xEDF5FF) or hex_color(0xFFFFFF))
+	local text_color = enabled == false and hex_color(0xA3AFBF) or (selected and hex_color(0x2256A3) or hex_color(0x4F6075))
+
+	gui.set_position(view.outer, vmath.vector3(cx, cy, 0))
+	gui.set_size(view.outer, vmath.vector3(math.max(w, 1), math.max(h, 1), 0))
+	gui.set_color(view.outer, outer_color)
+
+	gui.set_position(view.inner, vmath.vector3(cx, cy, 0))
+	gui.set_size(view.inner, vmath.vector3(math.max(w - 4, 1), math.max(h - 4, 1), 0))
+	gui.set_color(view.inner, inner_color)
+
+	if view.centered then
+		gui.set_position(view.label, vmath.vector3(cx, cy + 1, 0))
+		gui.set_size(view.label, vmath.vector3(math.max(w - 8, 1), math.max(h - 6, 1), 0))
+	else
+		gui.set_position(view.label, vmath.vector3(x + 8, y - 4, 0))
+		gui.set_size(view.label, vmath.vector3(math.max(w - 16, 1), h, 0))
+	end
+	gui.set_scale(view.label, vmath.vector3(scale, scale, 1))
+	gui.set_text(view.label, label)
+	gui.set_color(view.label, text_color)
+end
+
+local function ensure_field_view(self, views, index)
+	local existing = views[index]
+	if existing ~= nil then
+		return existing
+	end
+
+	local label = gui.clone(self.chrome_left_label_template)
+	local outer = gui.clone(self.chrome_outer_template)
+	local inner = gui.clone(self.chrome_inner_template)
+	local value = gui.clone(self.chrome_left_label_template)
+	gui.set_enabled(label, true)
+	gui.set_enabled(outer, true)
+	gui.set_enabled(inner, true)
+	gui.set_enabled(value, true)
+
+	local created = {
+		label = label,
+		outer = outer,
+		inner = inner,
+		value = value,
+	}
+	views[index] = created
+	return created
+end
+
+local function trim_extra_field_views(views, used_count)
+	for index, view in pairs(views) do
+		if index > used_count then
+			gui.delete_node(view.label)
+			gui.delete_node(view.outer)
+			gui.delete_node(view.inner)
+			gui.delete_node(view.value)
+			views[index] = nil
+		end
+	end
+end
+
+local function set_field_view_layout(view, label_x, y, field_x, field_w, label, value)
+	gui.set_position(view.label, vmath.vector3(label_x, y - 4, 0))
+	gui.set_size(view.label, vmath.vector3(math.max(field_x - label_x - 8, 1), 20, 0))
+	gui.set_scale(view.label, vmath.vector3(0.4, 0.4, 1))
+	gui.set_text(view.label, label)
+	gui.set_color(view.label, hex_color(0x73869C))
+
+	gui.set_position(view.outer, vmath.vector3(field_x + field_w * 0.5, y - 12, 0))
+	gui.set_size(view.outer, vmath.vector3(math.max(field_w, 1), 24, 0))
+	gui.set_color(view.outer, hex_color(0xDFE6EF))
+
+	gui.set_position(view.inner, vmath.vector3(field_x + field_w * 0.5, y - 12, 0))
+	gui.set_size(view.inner, vmath.vector3(math.max(field_w - 4, 1), 20, 0))
+	gui.set_color(view.inner, hex_color(0xFFFFFF))
+
+	gui.set_position(view.value, vmath.vector3(field_x + 8, y - 4, 0))
+	gui.set_size(view.value, vmath.vector3(math.max(field_w - 12, 1), 20, 0))
+	gui.set_scale(view.value, vmath.vector3(0.4, 0.4, 1))
+	gui.set_text(view.value, value)
+	gui.set_color(view.value, hex_color(0x10233A))
+end
+
+local function ensure_line_view(views, template, index)
+	local existing = views[index]
+	if existing ~= nil then
+		return existing
+	end
+
+	local line = gui.clone(template)
+	gui.set_enabled(line, true)
+	gui.set_layer(line, "ui")
+	views[index] = line
+	return line
+end
+
+local function draw_segment(line, x1, y1, x2, y2, thickness, color)
+	local dx = x2 - x1
+	local dy = y2 - y1
+	local length = math.sqrt(dx * dx + dy * dy)
+	local angle = math.atan2(dy, dx)
+	gui.set_position(line, vmath.vector3((x1 + x2) * 0.5, (y1 + y2) * 0.5, 0))
+	gui.set_size(line, vmath.vector3(math.max(length, 1), thickness, 0))
+	gui.set_rotation(line, vmath.quat_rotation_z(angle))
+	gui.set_color(line, color)
+end
+
+local function trim_extra_line_views(views, used_count)
+	for index, line in pairs(views) do
+		if index > used_count then
+			gui.delete_node(line)
+			views[index] = nil
+		end
+	end
+end
+
+local function render_frame_chrome(self)
+	if self.layout == nil then
+		return
+	end
+
+	local used = 0
+	local color = hex_color(0xDFE6EF)
+	local thickness = 1
+	local left = self.layout.frame_left
+	local right = self.layout.frame_left + self.layout.frame_width
+	local bottom = self.layout.frame_bottom
+	local top = self.layout.frame_bottom + self.layout.frame_height
+	local top_bar_bottom = top - self.layout.top_bar_h
+	local left_split_x = self.layout.canvas_x - CONTENT_GAP * 0.5
+	local right_split_x = self.layout.right_x - CONTENT_GAP * 0.5
+	local analytics_split_y = self.layout.chart_y + 8
+
+	local segments = {
+		{ left, top_bar_bottom, right, top_bar_bottom },
+		{ left_split_x, top_bar_bottom, left_split_x, bottom },
+		{ right_split_x, top_bar_bottom, right_split_x, bottom },
+		{ self.layout.chart_x, analytics_split_y, self.layout.chart_x + self.layout.chart_w + CONTENT_GAP + self.layout.distribution_w, analytics_split_y },
+		{ self.layout.distribution_x - CONTENT_GAP * 0.5, self.layout.chart_y, self.layout.distribution_x - CONTENT_GAP * 0.5, self.layout.chart_y - self.layout.chart_h },
+	}
+
+	for _, segment in ipairs(segments) do
+		used = used + 1
+		local line = ensure_line_view(self.chrome_line_views, self.edge_template, used)
+		draw_segment(line, segment[1], segment[2], segment[3], segment[4], thickness, color)
+	end
+
+	trim_extra_line_views(self.chrome_line_views, used)
+end
+
+local function render_side_tabs(self)
+	if self.layout == nil then
+		return
+	end
+
+	local used = 0
+	local tab_x = self.layout.right_x + 16
+	local tab_y = self.layout.tab_panel_y
+	local available_w = self.layout.right_w - 32
+	local tab_w = math.floor((available_w - BUTTON_GAP * (#SIDE_TABS - 1)) / #SIDE_TABS)
+	for index, tab in ipairs(SIDE_TABS) do
+		used = used + 1
+		local view = ensure_button_view(self, self.side_tab_views, used, true)
+		view.key = tab.key
+		view.command = nil
+		set_button_view_layout(view, tab_x, tab_y, tab_w, TAB_HEADER_HEIGHT, tab.label, 0.38, self.active_side_tab == tab.key, true)
+		tab_x = tab_x + tab_w + BUTTON_GAP
+	end
+
+	trim_extra_button_views(self.side_tab_views, used)
+end
+
+local function render_top_run_button(self)
+	if self.layout == nil then
+		return
+	end
+
+	local buttons = {
+		{ key = "step", command = "step", label = "Step" },
+		{ key = "play", command = "toggle_autoplay", label = self.autoplay and "Pause" or "Play" },
+		{ key = "batch", command = "batch", label = "Batch" },
+	}
+	local x = self.layout.frame_left + self.layout.frame_width - 268
+	for index, button in ipairs(buttons) do
+		local view = ensure_button_view(self, self.top_button_views, index, false)
+		view.key = button.key
+		view.command = button.command
+		set_button_view_layout(view, x, self.layout.top_y - 12, 80, 30, button.label, 0.4, button.key == "play" and self.autoplay == true, true)
+		x = x + 88
+	end
+	trim_extra_button_views(self.top_button_views, #buttons)
+end
+
+local function render_inspector(self)
+	if self.layout == nil then
+		return
+	end
+
+	local payload = self.inspector_payload or {}
+	local fields = payload.fields or {}
+	local title = payload.title or "Selection"
+	local status_line = payload.status_line or ""
+	local used = 0
+	local label_x = self.layout.right_x + 18
+	local field_x = self.layout.right_x + 128
+	local field_w = self.layout.right_w - 146
+	local row_y = self.layout.inspector_y - 34
+	local max_rows = math.max(math.floor((self.layout.inspector_h - 32) / 28) - 1, 3)
+
+	gui.set_text(self.status_title_text, title)
+	gui.set_color(self.status_title_text, hex_color(0x10233A))
+
+	for index, field in ipairs(fields) do
+		if index > max_rows then
+			break
+		end
+		used = used + 1
+		local view = ensure_field_view(self, self.inspector_field_views, used)
+		set_field_view_layout(view, label_x, row_y, field_x, field_w, tostring(field.label or ""), tostring(field.value or ""))
+		row_y = row_y - 28
+	end
+
+	trim_extra_field_views(self.inspector_field_views, used)
+
+	if status_line ~= "" then
+		gui.set_position(self.status_text, vmath.vector3(label_x, math.max(self.layout.frame_bottom + 20, row_y - 6), 0))
+		gui.set_size(self.status_text, vmath.vector3(self.layout.right_w - 36, 56, 0))
+		gui.set_scale(self.status_text, vmath.vector3(0.28, 0.28, 1))
+		gui.set_text(self.status_text, status_line)
+		gui.set_color(self.status_text, hex_color(0x6A7A8D))
+	else
+		gui.set_text(self.status_text, "")
+	end
+end
+
+local function render_side_buttons(self)
+	if self.layout == nil then
+		return
+	end
+
+	local used_buttons = 0
+	local used_fields = 0
+	local rail_x = self.layout.left_x + 12
+	local rail_y = self.layout.left_y - 10
+	local rail_button_w = self.layout.left_w - 24
+	local rail_button_h = 30
+
+	for index, button in ipairs(GRAPH_TOOL_BUTTONS) do
+		local y = rail_y - (index - 1) * (rail_button_h + BUTTON_GAP)
+		used_buttons = used_buttons + 1
+		local view = ensure_button_view(self, self.side_button_views, used_buttons, true)
+		view.key = button.key
+		view.command = button.command
+		set_button_view_layout(view, rail_x, y, rail_button_w, rail_button_h, button.label, button.scale or 0.24, self.active_tool == button.key, true)
+	end
+
+	local panel_x = self.layout.right_x + 18
+	local panel_y = self.layout.action_y
+	local panel_button_w = self.layout.right_w - 36
+	local list_x = panel_x
+	local list_y = panel_y
+	if self.active_side_tab == "edit" or self.active_side_tab == "file" then
+		local buttons_list = self.active_side_tab == "edit" and EDIT_ACTION_BUTTONS or FILE_ACTION_BUTTONS
+		for _, button in ipairs(buttons_list) do
+			used_buttons = used_buttons + 1
+			local view = ensure_button_view(self, self.side_button_views, used_buttons, false)
+			view.key = button.key
+			view.command = button.command
+			set_button_view_layout(view, list_x, list_y, panel_button_w, 26, button.label, 0.38, false, button.command ~= nil)
+			list_y = list_y - 30
+		end
+	elseif self.active_side_tab == "run" then
+		for _, button in ipairs(RUN_ACTION_BUTTONS) do
+			used_buttons = used_buttons + 1
+			local view = ensure_button_view(self, self.side_button_views, used_buttons, false)
+			view.key = button.key
+			view.command = button.command
+			set_button_view_layout(view, list_x, list_y, panel_button_w, 26, button.label, 0.38, false, true)
+			list_y = list_y - 30
+		end
+		for _, field in ipairs({
+			{ label = "Runs", value = "100" },
+			{ label = "Visible Runs", value = "25" },
+		}) do
+			used_fields = used_fields + 1
+			local view = ensure_field_view(self, self.side_field_views, used_fields)
+			set_field_view_layout(view, self.layout.right_x + 18, list_y, self.layout.right_x + 154, self.layout.right_w - 172, field.label, field.value)
+			list_y = list_y - 30
+		end
+	end
+
+	trim_extra_button_views(self.side_button_views, used_buttons)
+	trim_extra_field_views(self.side_field_views, used_fields)
+end
+
+local function render_chart(self, chart)
+	local points = {}
+	local chart_title = "Execution Chart"
+	local chart_min = 0
+	local chart_max = 0
+	if type(chart) == "table" then
+		points = chart.points or {}
+		if chart.node_id ~= nil then
+			chart_title = "Prediction: " .. tostring(chart.node_id)
+		end
+		chart_min = tonumber(chart.min) or 0
+		chart_max = tonumber(chart.max) or 0
+	end
+
+	gui.set_text(self.chart_title_text, chart_title)
+
+	if #points < 2 then
+		local rect = area_rect_nw(self.chart_area, 10)
+		local width = math.max(rect.right - rect.left, 1)
+		local line = ensure_chart_line_view(self, 1)
+		gui.set_position(line, vmath.vector3(rect.left + width * 0.5, rect.bottom + 4, 0))
+		gui.set_size(line, vmath.vector3(width, 3, 0))
+		gui.set_rotation(line, vmath.quat_rotation_z(0))
+		gui.set_color(line, vmath.vector4(0.62, 0.74, 0.86, 0.98))
+		trim_extra_views(self.chart_line_views, 1)
+		return
+	end
+
+	local rect = area_rect_nw(self.chart_area, 10)
+	local width = math.max(rect.right - rect.left, 1)
+	local height = math.max(rect.top - rect.bottom, 1)
+	local min_value = chart_min
+	local max_value = chart_max
+	if max_value <= min_value then
+		max_value = min_value + 1
+	end
+
+	local used = 0
+	for index = 2, #points do
+		local v1 = tonumber(points[index - 1]) or 0
+		local v2 = tonumber(points[index]) or 0
+		local t1 = (index - 2) / (#points - 1)
+		local t2 = (index - 1) / (#points - 1)
+		local n1 = (v1 - min_value) / (max_value - min_value)
+		local n2 = (v2 - min_value) / (max_value - min_value)
+		local x1 = rect.left + t1 * width
+		local x2 = rect.left + t2 * width
+		local y1 = rect.bottom + n1 * height
+		local y2 = rect.bottom + n2 * height
+		local dx = x2 - x1
+		local dy = y2 - y1
+		local length = math.sqrt(dx * dx + dy * dy)
+		local angle = math.atan2(dy, dx)
+
+		used = used + 1
+		local line = ensure_chart_line_view(self, used)
+		gui.set_position(line, vmath.vector3((x1 + x2) * 0.5, (y1 + y2) * 0.5, 0))
+		gui.set_size(line, vmath.vector3(length, 4, 0))
+		gui.set_rotation(line, vmath.quat_rotation_z(angle))
+		gui.set_color(line, vmath.vector4(0.26, 0.67, 0.39, 0.98))
+	end
+
+	trim_extra_views(self.chart_line_views, used)
+end
+
+local function render_distribution(self, distribution)
+	local bins = {}
+	if type(distribution) == "table" then
+		bins = distribution.bins or {}
+	end
+
+	if #bins == 0 then
+		trim_extra_views(self.distribution_bar_views, 0)
+		gui.set_text(self.distribution_title_text, "Batch Distribution")
+		return
+	end
+
+	local max_count = 0
+	for _, bucket in ipairs(bins) do
+		max_count = math.max(max_count, tonumber(bucket.count) or 0)
+	end
+	max_count = math.max(max_count, 1)
+
+	local rect = area_rect_nw(self.distribution_area, 10)
+	local width = math.max(rect.right - rect.left, 1)
+	local height = math.max(rect.top - rect.bottom, 1)
+	local column_width = width / #bins
+	local used = 0
+
+	for index, bucket in ipairs(bins) do
+		local count = tonumber(bucket.count) or 0
+		local normalized = count / max_count
+		local bar_height = math.max(normalized * height, 2)
+		local bar_width = math.max(column_width - 6, 4)
+		local x = rect.left + (index - 0.5) * column_width
+		local y = rect.bottom + bar_height * 0.5
+
+		used = used + 1
+		local bar = ensure_distribution_bar_view(self, used)
+		gui.set_position(bar, vmath.vector3(x, y, 0))
+		gui.set_size(bar, vmath.vector3(bar_width, bar_height, 0))
+		local tint = 0.35 + normalized * 0.45
+		gui.set_color(bar, vmath.vector4(0.35 + tint * 0.22, 0.63 + tint * 0.18, 0.42 + tint * 0.08, 0.95))
+	end
+
+	trim_extra_views(self.distribution_bar_views, used)
+	gui.set_text(self.distribution_title_text, "Batch Distribution")
+end
+
+local function render_accuracy(self, text)
+	gui.set_text(self.accuracy_label_text, "Indicators")
+	gui.set_text(self.accuracy_text, text or "Run batch to compute indicators and percentile spread.")
+end
+
+local function action_point_x(action)
+	return action.x or action.screen_x or 0
+end
+
+local function action_point_y(action)
+	return action.y or action.screen_y or 0
+end
+
+function init(self)
+	self.node_views = {}
+	self.edge_views = {}
+	self.grid_views = {}
+	self.chart_line_views = {}
+	self.distribution_bar_views = {}
+	self.chrome_line_views = {}
+	self.side_tab_views = {}
+	self.side_button_views = {}
+	self.side_field_views = {}
+	self.top_button_views = {}
+	self.inspector_field_views = {}
+	self.camera_x = 0
+	self.camera_y = 0
+	self.camera_zoom = 1
+	self.last_x = 0
+	self.last_y = 0
+	self.left_down = false
+	self.right_down = false
+	self.nodes_payload = {}
+	self.edges_payload = {}
+	self.chart_payload = {}
+	self.distribution_payload = {}
+	self.inspector_payload = {}
+	self.last_gui_w = 0
+	self.last_gui_h = 0
+	self.active_side_tab = "graph"
+	self.active_tool = "select"
+	self.autoplay = false
+
+	self.canvas_bg = gui.get_node("canvas_bg")
+	self.canvas_tint = gui.get_node("canvas_tint")
+	self.top_bar = gui.get_node("top_bar")
+	self.left_panel = gui.get_node("left_panel")
+	self.right_panel = gui.get_node("right_panel")
+	self.canvas_view = gui.get_node("canvas_view")
+	self.bottom_bar = gui.get_node("bottom_bar")
+	self.title_text = gui.get_node("title_text")
+	self.left_help_text = gui.get_node("left_help_text")
+	self.status_title_text = gui.get_node("status_title_text")
+	self.tools_bar_bg = gui.get_node("tools_bar_bg")
+	self.tools_bar_text = gui.get_node("tools_bar_text")
+	self.play_bar_bg = gui.get_node("play_bar_bg")
+	self.footer_text = gui.get_node("footer_text")
+	self.accuracy_box = gui.get_node("accuracy_box")
+	gui.set_layer(self.accuracy_box, "background")
+
+	self.edge_template = gui.get_node("edge_template")
+	self.grid_line_template = gui.get_node("grid_line_template")
+	self.node_box_template = gui.get_node("node_box_template")
+	self.node_title_template = gui.get_node("node_title_template")
+	self.node_value_template = gui.get_node("node_value_template")
+	self.node_icon_template = gui.get_node("node_icon_template")
+	self.node_handle_template = gui.get_node("node_handle_template")
+	self.chrome_outer_template = gui.get_node("chrome_outer_template")
+	self.chrome_inner_template = gui.get_node("chrome_inner_template")
+	self.chrome_left_label_template = gui.get_node("chrome_left_label_template")
+	self.chrome_center_label_template = gui.get_node("chrome_center_label_template")
+	self.chart_line_template = gui.get_node("chart_line_template")
+	self.chart_bar_template = gui.get_node("chart_bar_template")
+	self.chart_area = gui.get_node("chart_area")
+	self.distribution_area = gui.get_node("distribution_area")
+	gui.set_layer(self.distribution_area, "background")
+	self.chart_title_text = gui.get_node("chart_title_text")
+	self.distribution_title_text = gui.get_node("distribution_title_text")
+	self.accuracy_label_text = gui.get_node("accuracy_label_text")
+	self.accuracy_text = gui.get_node("accuracy_text")
+	self.hud_text = gui.get_node("hud_text")
+	self.status_text = gui.get_node("status_text")
+
+	gui.set_text(self.title_text, "Machinations")
+	gui.set_text(self.hud_text, "Local Defold simulation editor")
+	gui.set_text(self.status_text, "")
+	gui.set_text(self.accuracy_label_text, "")
+	gui.set_text(self.accuracy_text, "Run batch to compute indicators and percentile spread.")
+	gui.set_text(self.left_help_text, "Design      Predict      Balance      Integrate")
+	gui.set_text(self.tools_bar_text, "")
+	gui.set_text(self.footer_text, "")
+	gui.set_text(self.status_title_text, "Selection")
+	gui.set_text(self.chart_title_text, "")
+	gui.set_text(self.distribution_title_text, "")
+	update_responsive_layout(self)
+	render_frame_chrome(self)
+	render_top_run_button(self)
+	render_side_tabs(self)
+	render_side_buttons(self)
+	render_inspector(self)
+	self.last_gui_w = gui.get_width()
+	self.last_gui_h = gui.get_height()
+end
+
+function on_message(self, message_id, message, sender)
+	if message_id == MSG_EDITOR_RENDER_META then
+		update_responsive_layout(self)
+		self.camera_x = message.camera_x or self.camera_x
+		self.camera_y = message.camera_y or self.camera_y
+		self.camera_zoom = message.camera_zoom or self.camera_zoom
+		self.active_tool = message.active_tool or self.active_tool
+		self.autoplay = message.autoplay == true
+		self.inspector_payload = message.inspector or self.inspector_payload
+		render_frame_chrome(self)
+		render_top_run_button(self)
+		render_side_tabs(self)
+		render_side_buttons(self)
+		render_inspector(self)
+		render_grid(self)
+		render_edges(self, self.edges_payload)
+		render_nodes(self, self.nodes_payload)
+		if message.hud ~= nil then
+			gui.set_text(self.hud_text, message.hud)
+		end
+	elseif message_id == MSG_EDITOR_RENDER_NODES then
+		if message.reset then
+			self.nodes_payload = {}
+		end
+
+		for _, node in ipairs(message.items or {}) do
+			self.nodes_payload[#self.nodes_payload + 1] = node
+		end
+
+		if message.done then
+			render_nodes(self, self.nodes_payload)
+		end
+	elseif message_id == MSG_EDITOR_RENDER_EDGES then
+		if message.reset then
+			self.edges_payload = {}
+		end
+
+		for _, edge in ipairs(message.items or {}) do
+			self.edges_payload[#self.edges_payload + 1] = edge
+		end
+
+		if message.done then
+			render_edges(self, self.edges_payload)
+		end
+	elseif message_id == MSG_EDITOR_RENDER_CHART then
+		self.chart_payload = message.chart or {}
+		render_chart(self, self.chart_payload)
+	elseif message_id == MSG_EDITOR_RENDER_BATCH then
+		self.distribution_payload = message.distribution or {}
+		render_distribution(self, self.distribution_payload)
+		render_accuracy(self, message.accuracy_text)
+	end
+end
+
+function update(self, dt)
+	local width = gui.get_width()
+	local height = gui.get_height()
+	if width ~= self.last_gui_w or height ~= self.last_gui_h then
+		self.last_gui_w = width
+		self.last_gui_h = height
+		update_responsive_layout(self)
+		render_frame_chrome(self)
+		render_top_run_button(self)
+		render_side_tabs(self)
+		render_side_buttons(self)
+		render_inspector(self)
+		render_grid(self)
+		render_edges(self, self.edges_payload)
+		render_nodes(self, self.nodes_payload)
+		render_chart(self, self.chart_payload)
+		render_distribution(self, self.distribution_payload)
+	end
+end
+
+function on_input(self, action_id, action)
+	local x = action_point_x(action)
+	local y = action_point_y(action)
+	local dx = action.dx or (x - self.last_x)
+	local dy = action.dy or (y - self.last_y)
+	self.last_x = x
+	self.last_y = y
+
+	if is_left_button(action_id) and action.pressed then
+		for _, view in pairs(self.side_tab_views) do
+			if gui.pick_node(view.inner, x, y) or gui.pick_node(view.outer, x, y) then
+				self.active_side_tab = view.key
+				render_side_tabs(self)
+				render_side_buttons(self)
+				render_inspector(self)
+				return true
+			end
+		end
+
+		for _, view in pairs(self.top_button_views) do
+			if gui.pick_node(view.inner, x, y) or gui.pick_node(view.outer, x, y) then
+				if view.command ~= nil then
+					send_command(view.command)
+				end
+				return true
+			end
+		end
+
+		for _, view in pairs(self.side_button_views) do
+			if gui.pick_node(view.inner, x, y) or gui.pick_node(view.outer, x, y) then
+				if view.command ~= nil then
+					send_command(view.command)
+				end
+				return true
+			end
+		end
+	end
+
+	if is_left_button(action_id) then
+		if action.pressed then
+			self.left_down = true
+			send_pointer(self, "down", "left", x, y, dx, dy, 0)
+			return true
+		end
+		if action.released then
+			self.left_down = false
+			send_pointer(self, "up", "left", x, y, dx, dy, 0)
+			return true
+		end
+		if self.left_down then
+			send_pointer(self, "move", "left", x, y, dx, dy, 0)
+			return true
+		end
+	end
+
+	if is_right_button(action_id) then
+		if action.pressed then
+			self.right_down = true
+			send_pointer(self, "down", "right", x, y, dx, dy, 0)
+			return true
+		end
+		if action.released then
+			self.right_down = false
+			send_pointer(self, "up", "right", x, y, dx, dy, 0)
+			return true
+		end
+		if self.right_down then
+			send_pointer(self, "move", "right", x, y, dx, dy, 0)
+			return true
+		end
+	end
+
+	if action_id == HASH_MOUSE_WHEEL_UP and action.pressed then
+		send_pointer(self, "wheel", "none", x, y, 0, 0, 1)
+		return true
+	end
+	if action_id == HASH_MOUSE_WHEEL_DOWN and action.pressed then
+		send_pointer(self, "wheel", "none", x, y, 0, 0, -1)
+		return true
+	end
+
+	if action_id == HASH_KEY_SPACE and action.pressed then
+		send_command("step")
+		return true
+	end
+	if action_id == HASH_KEY_ENTER and action.pressed then
+		send_command("toggle_autoplay")
+		return true
+	end
+	if action_id == HASH_KEY_B and action.pressed then
+		send_command("batch")
+		return true
+	end
+	if action_id == HASH_KEY_I and action.pressed then
+		send_command("import")
+		return true
+	end
+	if action_id == HASH_KEY_N and action.pressed then
+		send_command("add_pool")
+		return true
+	end
+	if action_id == HASH_KEY_P and action.pressed then
+		send_command("autogen_next")
+		return true
+	end
+	if action_id == HASH_KEY_S and action.pressed then
+		send_command("add_source")
+		return true
+	end
+	if action_id == HASH_KEY_G and action.pressed then
+		send_command("add_gate")
+		return true
+	end
+	if action_id == HASH_KEY_D and action.pressed then
+		send_command("add_drain")
+		return true
+	end
+	if action_id == HASH_KEY_Q and action.pressed then
+		send_command("add_queue")
+		return true
+	end
+	if action_id == HASH_KEY_E and action.pressed then
+		send_command("add_delay")
+		return true
+	end
+	if action_id == HASH_KEY_U and action.pressed then
+		send_command("autoverify")
+		return true
+	end
+	if action_id == HASH_KEY_V and action.pressed then
+		send_command("add_register")
+		return true
+	end
+	if action_id == HASH_KEY_C and action.pressed then
+		send_command("arm_link")
+		return true
+	end
+	if (action_id == HASH_KEY_DELETE or action_id == HASH_KEY_BACKSPACE) and action.pressed then
+		send_command("delete_selected")
+		return true
+	end
+	if action_id == HASH_KEY_R and action.pressed then
+		send_command("reset")
+		return true
+	end
+	if action_id == HASH_KEY_L and action.pressed then
+		send_command("load")
+		return true
+	end
+	if action_id == HASH_KEY_K and action.pressed then
+		send_command("save")
+		return true
+	end
+	if action_id == HASH_KEY_T and action.pressed then
+		send_command("run_regressions")
+		return true
+	end
+
+	if action_id == nil and (self.left_down or self.right_down) then
+		local button = self.right_down and "right" or "left"
+		send_pointer(self, "move", button, x, y, dx, dy, 0)
+		return true
+	end
+
+	return false
+end
+

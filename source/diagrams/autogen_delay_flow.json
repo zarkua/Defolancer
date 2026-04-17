@@ -1,0 +1,64 @@
+{
+  "connections": [
+    {
+      "id": "source_delay",
+      "amount": 1,
+      "from": "source",
+      "to": "delay",
+      "type": "resource"
+    },
+    {
+      "id": "delay_sink",
+      "amount": 1,
+      "from": "delay",
+      "to": "sink",
+      "type": "resource"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "source",
+      "initial_resources": 4,
+      "rate": 1,
+      "data": {
+        "finite_source": true
+      },
+      "type": "source",
+      "trigger_mode": "automatic"
+    },
+    {
+      "id": "delay",
+      "delay_ticks": 2,
+      "rate": 1,
+      "type": "delay",
+      "trigger_mode": "passive"
+    },
+    {
+      "id": "sink",
+      "initial_resources": 0,
+      "rate": 1,
+      "type": "pool",
+      "trigger_mode": "passive"
+    }
+  ],
+  "end": {
+    "max_ticks": 20,
+    "stop_when_idle": true
+  },
+  "play_mode": "headless",
+  "editor_positions": {
+    "sink": {
+      "x": 200,
+      "y": 120
+    },
+    "delay": {
+      "x": -60,
+      "y": 120
+    },
+    "source": {
+      "x": -320,
+      "y": 120
+    }
+  },
+  "name": "Auto Delay Flow"
+}

@@ -1,0 +1,147 @@
+{
+  "connections": [
+    {
+      "id": "mine_to_stock",
+      "amount": 1,
+      "from": "ore_mine",
+      "to": "ore_stock",
+      "type": "resource"
+    },
+    {
+      "id": "stock_to_smelter",
+      "amount": 1,
+      "from": "ore_stock",
+      "to": "smelter",
+      "type": "resource"
+    },
+    {
+      "id": "smelter_to_ingots",
+      "amount": 1,
+      "from": "smelter",
+      "to": "ingot_stock",
+      "type": "resource"
+    },
+    {
+      "id": "ingots_to_market",
+      "amount": 1,
+      "from": "ingot_stock",
+      "to": "market",
+      "type": "resource"
+    },
+    {
+      "id": "market_to_wallet",
+      "amount": 1,
+      "from": "market",
+      "to": "coin_vault",
+      "type": "resource"
+    },
+    {
+      "id": "wallet_to_bank",
+      "amount": 1,
+      "from": "coin_vault",
+      "to": "bank",
+      "type": "resource"
+    }
+  ],
+  "name": "Economy Loop",
+  "play_mode": "headless",
+  "description": "Raw output is refined, traded, and deposited as currency.",
+  "nodes": [
+    {
+      "id": "ore_mine",
+      "initial_resources": 28,
+      "trigger_mode": "automatic",
+      "data": {
+        "finite_source": true
+      },
+      "rate": 2,
+      "type": "source"
+    },
+    {
+      "id": "ore_stock",
+      "capacity": 20,
+      "initial_resources": 0,
+      "trigger_mode": "automatic",
+      "rate": 2,
+      "type": "pool"
+    },
+    {
+      "id": "smelter",
+      "initial_resources": 0,
+      "trigger_mode": "automatic",
+      "data": {
+        "conversion_ratio": 1
+      },
+      "rate": 2,
+      "type": "converter"
+    },
+    {
+      "id": "ingot_stock",
+      "capacity": 20,
+      "initial_resources": 0,
+      "trigger_mode": "automatic",
+      "rate": 2,
+      "type": "pool"
+    },
+    {
+      "id": "market",
+      "initial_resources": 0,
+      "trigger_mode": "automatic",
+      "data": {
+        "trade_ratio": 3
+      },
+      "rate": 2,
+      "type": "trader"
+    },
+    {
+      "id": "coin_vault",
+      "capacity": 48,
+      "initial_resources": 0,
+      "trigger_mode": "automatic",
+      "rate": 2,
+      "type": "pool"
+    },
+    {
+      "id": "bank",
+      "initial_resources": 0,
+      "trigger_mode": "passive",
+      "rate": 99,
+      "type": "drain"
+    }
+  ],
+  "seed": 41,
+  "end": {
+    "max_ticks": 84,
+    "stop_when_idle": true
+  },
+  "editor_positions": {
+    "ore_stock": {
+      "x": -220,
+      "y": 130
+    },
+    "smelter": {
+      "x": 0,
+      "y": 130
+    },
+    "ingot_stock": {
+      "x": 220,
+      "y": 130
+    },
+    "market": {
+      "x": 440,
+      "y": 130
+    },
+    "coin_vault": {
+      "x": 660,
+      "y": 130
+    },
+    "bank": {
+      "x": 880,
+      "y": 130
+    },
+    "ore_mine": {
+      "x": -440,
+      "y": 130
+    }
+  }
+}

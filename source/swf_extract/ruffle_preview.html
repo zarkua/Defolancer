@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Machinations SWF Preview</title>
+<style>
+html, body {
+	margin: 0;
+	padding: 0;
+	background: #d9deee;
+	font-family: "Segoe UI", sans-serif;
+}
+
+body {
+	display: flex;
+	flex-direction: column;
+	min-height: 100vh;
+}
+
+.toolbar {
+	padding: 12px 16px;
+	background: #ffffff;
+	border-bottom: 1px solid #b2bad4;
+	color: #2a3550;
+	font-size: 14px;
+}
+
+.stage {
+	display: flex;
+	flex: 1 1 auto;
+	align-items: center;
+	justify-content: center;
+	padding: 18px;
+}
+
+#player {
+	width: min(1280px, calc(100vw - 48px));
+	height: min(820px, calc(100vh - 92px));
+	background: #ffffff;
+	box-shadow: 0 20px 60px rgba(48, 61, 94, 0.18);
+}
+
+#player embed,
+#player object,
+#player ruffle-object,
+#player canvas {
+	width: 100%;
+	height: 100%;
+	display: block;
+}
+</style>
+</head>
+<body>
+<div class="toolbar">Machinations SWF preview via Ruffle</div>
+<div class="stage">
+	<div id="player"></div>
+</div>
+<script>
+window.RufflePlayer = window.RufflePlayer || {};
+window.addEventListener("DOMContentLoaded", function () {
+	var ruffle = window.RufflePlayer.newest();
+	var player = ruffle.createPlayer();
+	player.style.width = "100%";
+	player.style.height = "100%";
+	document.getElementById("player").appendChild(player);
+	player.ruffle().load({
+		url: "../Machinations.swf",
+		allowScriptAccess: false,
+		backgroundColor: "#ffffff",
+	});
+});
+</script>
+<script src="https://unpkg.com/@ruffle-rs/ruffle"></script>
+</body>
+</html>

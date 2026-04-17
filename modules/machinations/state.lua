@@ -40,6 +40,9 @@ local function build_nodes(diagram_nodes)
 			consumed_last_tick = 0,
 			last_generated = 0,
 			round_robin_index = 1,
+			buffer_events = {},
+			buffered_total = 0,
+			queue_next_release_tick = 0,
 		}
 
 		order[#order + 1] = node.id
@@ -89,6 +92,26 @@ local function build_metrics(node_order)
 	}
 end
 
+local function read_initial_field(nodes, connection)
+	local source = nodes[connection.from]
+	if source == nil then
+		return 0
+	end
+	if connection.source_field == types.STATE_FIELD.REGISTER then
+		return source.register_value or 0
+	end
+	if connection.source_field == types.STATE_FIELD.INCOMING then
+		return source.incoming_last_tick or 0
+	end
+	if connection.source_field == types.STATE_FIELD.OUTGOING then
+		return source.outgoing_last_tick or 0
+	end
+	if connection.source_field == types.STATE_FIELD.TICK then
+		return 0
+	end
+	return source.resources or 0
+end
+
 -- Create a new mutable runtime state.
 function State.new(diagram, options)
 	options = options or {}
@@ -96,6 +119,13 @@ function State.new(diagram, options)
 	local nodes, node_order, total_resources = build_nodes(diagram.nodes)
 	local connections, outbound_resource, outbound_state = build_connections(diagram.connections)
 	local seed = options.seed or diagram.seed
+	local state_connection_values = {}
+
+	for _, connection in ipairs(connections) do
+		if connection.type == types.CONNECTION.STATE then
+			state_connection_values[connection.id] = read_initial_field(nodes, connection)
+		end
+	end
 
 	return {
 		diagram = diagram,
@@ -110,8 +140,10 @@ function State.new(diagram, options)
 		connections = connections,
 		outbound_resource = outbound_resource,
 		outbound_state = outbound_state,
+		state_connection_values = state_connection_values,
 		pending_transfers = {},
 		variables = copy_table(diagram.variables or {}),
+		variable_definitions = copy_table(diagram.variable_definitions or {}),
 		totals = {
 			initial_resources = total_resources,
 		},

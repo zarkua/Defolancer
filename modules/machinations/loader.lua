@@ -16,12 +16,18 @@ local CONNECTION_TYPES = make_set(types.CONNECTION)
 local TRIGGER_MODES = make_set(types.TRIGGER_MODE)
 local PLAY_MODES = make_set(types.PLAY_MODE)
 local GATE_MODES = make_set(types.GATE_MODE)
+local FLOW_MODES = make_set(types.FLOW_MODE)
 local STATE_ACTIONS = make_set(types.STATE_ACTION)
 local STATE_FIELDS = make_set(types.STATE_FIELD)
 local COMPARATORS = make_set(types.COMPARATOR)
 
 local LEGACY_PLAY_MODE_MAP = {
 	autoplay = types.PLAY_MODE.INTERACTIVE,
+}
+
+local LEGACY_GATE_MODE_MAP = {
+	sequential = types.GATE_MODE.ROUND_ROBIN,
+	probabilistic = types.GATE_MODE.RANDOM_ALL,
 }
 
 local LEGACY_TRIGGER_MAP = {
@@ -98,6 +104,121 @@ local function as_number(value, field_name)
 	end
 
 	return value
+end
+
+local function as_string(value, field_name, allow_empty)
+	if value == nil then
+		return nil
+	end
+
+	if type(value) ~= "string" then
+		return nil, field_name .. " must be a string"
+	end
+	if not allow_empty and value == "" then
+		return nil, field_name .. " must not be empty"
+	end
+
+	return value
+end
+
+local function is_array(value)
+	if type(value) ~= "table" then
+		return false
+	end
+
+	for key, _ in pairs(value) do
+		if type(key) ~= "number" then
+			return false
+		end
+	end
+
+	return true
+end
+
+local function normalize_variables(raw_variables)
+	local normalized_values = {}
+	local definitions = {}
+
+	if type(raw_variables) ~= "table" then
+		return normalized_values, definitions
+	end
+
+	if is_array(raw_variables) then
+		for index, variable in ipairs(raw_variables) do
+			if type(variable) ~= "table" then
+				return nil, nil, "variables[" .. tostring(index) .. "] must be a table"
+			end
+
+			local name = variable.id or variable.name or variable.key
+			local name_err = nil
+			name, name_err = as_string(name, "variables[" .. tostring(index) .. "].name")
+			if not name then
+				return nil, nil, name_err
+			end
+
+			if definitions[name] ~= nil then
+				return nil, nil, "duplicate variable name: " .. name
+			end
+
+			local expression = variable.expression or variable.formula
+			if expression ~= nil then
+				local expr_err = nil
+				expression, expr_err = as_string(expression, "variables[" .. tostring(index) .. "].expression")
+				if not expression then
+					return nil, nil, expr_err
+				end
+				definitions[name] = expression
+				local default_value = tonumber(variable.default_value)
+				if default_value ~= nil then
+					normalized_values[name] = default_value
+				elseif type(variable.value) == "number" then
+					normalized_values[name] = variable.value
+				else
+					normalized_values[name] = 0
+				end
+			elseif variable.value ~= nil then
+				normalized_values[name] = variable.value
+			else
+				normalized_values[name] = 0
+			end
+		end
+
+		return normalized_values, definitions
+	end
+
+	for name, value in pairs(raw_variables) do
+		if type(name) ~= "string" or name == "" then
+			return nil, nil, "variable names must be non-empty strings"
+		end
+
+		if type(value) == "table" then
+			local expression = value.expression or value.formula
+			if expression ~= nil then
+				local expr_err = nil
+				expression, expr_err = as_string(expression, "variables." .. name .. ".expression")
+				if not expression then
+					return nil, nil, expr_err
+				end
+				definitions[name] = expression
+				local default_value = tonumber(value.default_value)
+				if default_value ~= nil then
+					normalized_values[name] = default_value
+				elseif type(value.value) == "number" then
+					normalized_values[name] = value.value
+				else
+					normalized_values[name] = 0
+				end
+			elseif value.value ~= nil then
+				normalized_values[name] = value.value
+			else
+				normalized_values[name] = 0
+			end
+		else
+			normalized_values[name] = value
+		end
+	end
+
+	return normalized_values, definitions
 end
 
 local function normalize_trigger_mode(node, node_id)
@@ -179,12 +300,24 @@ local function copy_node(node, index)
 		return nil, rate_err
 	end
 
-	local delay_ticks, delay_ticks_err = as_integer(node.delay_ticks or 0, "node " .. id .. ".delay_ticks", 0)
+	local default_delay_ticks = 0
+	if node_type == types.NODE.DELAY or node_type == types.NODE.QUEUE then
+		default_delay_ticks = 1
+	end
+
+	local delay_ticks, delay_ticks_err = as_integer(
+		node.delay_ticks or default_delay_ticks,
+		"node " .. id .. ".delay_ticks",
+		0
+	)
 	if not delay_ticks then
 		return nil, delay_ticks_err
 	end
 
 	local gate_mode = node.gate_mode or types.GATE_MODE.ALL
+	if LEGACY_GATE_MODE_MAP[gate_mode] ~= nil then
+		gate_mode = LEGACY_GATE_MODE_MAP[gate_mode]
+	end
 	if not GATE_MODES[gate_mode] then
 		return nil, "node " .. id .. " has unsupported gate_mode: " .. tostring(gate_mode)
 	end
@@ -209,6 +342,36 @@ local function copy_node(node, index)
 
 	if node.finite_source ~= nil then
 		data.finite_source = node.finite_source == true
+	end
+
+	local rate_expression, rate_expr_err = as_string(node.rate_expression, "node " .. id .. ".rate_expression")
+	if node.rate_expression ~= nil and not rate_expression then
+		return nil, rate_expr_err
+	end
+	local delay_expression, delay_expr_err = as_string(node.delay_expression, "node " .. id .. ".delay_expression")
+	if node.delay_expression ~= nil and not delay_expression then
+		return nil, delay_expr_err
+	end
+	local capacity_expression, cap_expr_err = as_string(node.capacity_expression, "node " .. id .. ".capacity_expression")
+	if node.capacity_expression ~= nil and not capacity_expression then
+		return nil, cap_expr_err
+	end
+	local register_expression, reg_expr_err = as_string(node.register_expression, "node " .. id .. ".register_expression")
+	if node.register_expression ~= nil and not register_expression then
+		return nil, reg_expr_err
+	end
+
+	if rate_expression ~= nil then
+		data.rate_expression = rate_expression
+	end
+	if delay_expression ~= nil then
+		data.delay_expression = delay_expression
+	end
+	if capacity_expression ~= nil then
+		data.capacity_expression = capacity_expression
+	end
+	if register_expression ~= nil then
+		data.register_expression = register_expression
 	end
 
 	return {
@@ -236,7 +399,7 @@ local function copy_resource_connection(connection, index, id, from, to, default
 		return nil, amount_err
 	end
 
-	local weight, weight_err = as_integer(connection.weight or 1, "connection #" .. tostring(index) .. ".weight", 1)
+	local weight, weight_err = as_integer(connection.weight or 1, "connection #" .. tostring(index) .. ".weight", 0)
 	if not weight then
 		return nil, weight_err
 	end
@@ -250,6 +413,46 @@ local function copy_resource_connection(connection, index, id, from, to, default
 		return nil, delay_ticks_err
 	end
 
+	local flow_mode = connection.flow_mode or connection.mode or types.FLOW_MODE.PUSH
+	if not FLOW_MODES[flow_mode] then
+		return nil, "connection #" .. tostring(index) .. ".flow_mode is unsupported: " .. tostring(flow_mode)
+	end
+
+	local amount_expression, amount_expr_err = as_string(
+		connection.amount_expression,
+		"connection #" .. tostring(index) .. ".amount_expression"
+	)
+	if connection.amount_expression ~= nil and not amount_expression then
+		return nil, amount_expr_err
+	end
+
+	local weight_expression, weight_expr_err = as_string(
+		connection.weight_expression,
+		"connection #" .. tostring(index) .. ".weight_expression"
+	)
+	if connection.weight_expression ~= nil and not weight_expression then
+		return nil, weight_expr_err
+	end
+
+	local delay_expression, delay_expr_err = as_string(
+		connection.delay_expression,
+		"connection #" .. tostring(index) .. ".delay_expression"
+	)
+	if connection.delay_expression ~= nil and not delay_expression then
+		return nil, delay_expr_err
+	end
+
+	local data = type(connection.data) == "table" and copy_table(connection.data) or {}
+	if amount_expression ~= nil then
+		data.amount_expression = amount_expression
+	end
+	if weight_expression ~= nil then
+		data.weight_expression = weight_expression
+	end
+	if delay_expression ~= nil then
+		data.delay_expression = delay_expression
+	end
+
 	return {
 		id = id,
 		from = from,
@@ -258,7 +461,8 @@ local function copy_resource_connection(connection, index, id, from, to, default
 		amount = amount,
 		weight = weight,
 		delay_ticks = delay_ticks,
-		data = type(connection.data) == "table" and copy_table(connection.data) or {},
+		flow_mode = flow_mode,
+		data = data,
 	}
 end
 
@@ -294,24 +498,87 @@ local function copy_state_connection(connection, index, id, from, to)
 	end
 
 	local register_op = connection.register_op or "set"
-	if register_op ~= "set" and register_op ~= "add" then
-		return nil, "connection #" .. tostring(index) .. ".register_op must be `set` or `add`"
+	if register_op ~= "set" and register_op ~= "add" and register_op ~= "mul" then
+		return nil, "connection #" .. tostring(index) .. ".register_op must be `set`, `add` or `mul`"
 	end
 
-	return {
-		id = id,
-		from = from,
-		to = to,
-		type = types.CONNECTION.STATE,
-		action = action,
-		source_field = source_field,
-		comparator = comparator,
-		value = value,
-		scale = scale,
-		target_enabled = connection.target_enabled ~= false,
-		target_trigger_mode = target_trigger_mode,
+	local target_rate, target_rate_err = as_number(
+		connection.target_rate,
+		"connection #" .. tostring(index) .. ".target_rate"
+	)
+	if connection.target_rate ~= nil and not target_rate then
+		return nil, target_rate_err
+	end
+
+	local target_capacity, target_capacity_err = as_number(
+		connection.target_capacity,
+		"connection #" .. tostring(index) .. ".target_capacity"
+	)
+	if connection.target_capacity ~= nil and not target_capacity then
+		return nil, target_capacity_err
+	end
+
+	local value_expression, value_expr_err = as_string(
+		connection.value_expression,
+		"connection #" .. tostring(index) .. ".value_expression"
+	)
+	if connection.value_expression ~= nil and not value_expression then
+		return nil, value_expr_err
+	end
+
+	local scale_expression, scale_expr_err = as_string(
+		connection.scale_expression,
+		"connection #" .. tostring(index) .. ".scale_expression"
+	)
+	if connection.scale_expression ~= nil and not scale_expression then
+		return nil, scale_expr_err
+	end
+
+	local condition_expression, condition_expr_err = as_string(
+		connection.condition_expression,
+		"connection #" .. tostring(index) .. ".condition_expression"
+	)
+	if connection.condition_expression ~= nil and not condition_expression then
+		return nil, condition_expr_err
+	end
+
+	local target_variable, target_variable_err = as_string(
+		connection.target_variable,
+		"connection #" .. tostring(index) .. ".target_variable"
+	)
+	if connection.target_variable ~= nil and not target_variable then
+		return nil, target_variable_err
+	end
+
+	local data = type(connection.data) == "table" and copy_table(connection.data) or {}
+	if value_expression ~= nil then
+		data.value_expression = value_expression
+	end
+	if scale_expression ~= nil then
+		data.scale_expression = scale_expression
+	end
+	if condition_expression ~= nil then
+		data.condition_expression = condition_expression
+	end
+
+		return {
+			id = id,
+			from = from,
+			to = to,
+			type = types.CONNECTION.STATE,
+			action = action,
+			source_field = source_field,
+			comparator = comparator,
+			value = value,
+			scale = scale,
+			use_delta = connection.use_delta == true,
+			target_enabled = connection.target_enabled ~= false,
+			target_trigger_mode = target_trigger_mode,
+			target_variable = target_variable,
+		target_rate = target_rate,
+		target_capacity = target_capacity,
 		register_op = register_op,
-		data = type(connection.data) == "table" and copy_table(connection.data) or {},
+		data = data,
 	}
 end
 
@@ -377,37 +644,51 @@ local function copy_end_conditions(diagram, node_lookup)
 			return nil, "diagram.end.conditions[" .. tostring(index) .. "] must be a table"
 		end
 
-		local node_id = condition.node_id
-		if type(node_id) ~= "string" or node_id == "" then
-			return nil, "diagram.end.conditions[" .. tostring(index) .. "].node_id is required"
-		end
-		if not node_lookup[node_id] then
-			return nil, "diagram.end.conditions[" .. tostring(index) .. "] references unknown node: " .. node_id
-		end
-
-		local field = condition.field or types.STATE_FIELD.RESOURCES
-		if not STATE_FIELDS[field] then
-			return nil, "diagram.end.conditions[" .. tostring(index) .. "].field is unsupported: " .. tostring(field)
+		local expression, expression_err = as_string(
+			condition.expression,
+			"diagram.end.conditions[" .. tostring(index) .. "].expression"
+		)
+		if condition.expression ~= nil and not expression then
+			return nil, expression_err
 		end
 
-		local comparator = condition.comparator or types.COMPARATOR.GREATER_OR_EQUAL
-		if not COMPARATORS[comparator] then
-			return nil, "diagram.end.conditions[" .. tostring(index) .. "].comparator is unsupported"
-		end
-
-		local value, value_err = as_number(condition.value, "diagram.end.conditions[" .. tostring(index) .. "].value")
-		if not value then
-			return nil, value_err
-		end
-
-		normalized.conditions[#normalized.conditions + 1] = {
+		local normalized_condition = {
 			id = condition.id or ("condition_" .. tostring(index)),
-			node_id = node_id,
-			field = field,
-			comparator = comparator,
-			value = value,
 			description = condition.description,
+			expression = expression,
 		}
+
+		if expression == nil then
+			local node_id = condition.node_id
+			if type(node_id) ~= "string" or node_id == "" then
+				return nil, "diagram.end.conditions[" .. tostring(index) .. "].node_id is required"
+			end
+			if not node_lookup[node_id] then
+				return nil, "diagram.end.conditions[" .. tostring(index) .. "] references unknown node: " .. node_id
+			end
+
+			local field = condition.field or types.STATE_FIELD.RESOURCES
+			if not STATE_FIELDS[field] then
+				return nil, "diagram.end.conditions[" .. tostring(index) .. "].field is unsupported: " .. tostring(field)
+			end
+
+			local comparator = condition.comparator or types.COMPARATOR.GREATER_OR_EQUAL
+			if not COMPARATORS[comparator] then
+				return nil, "diagram.end.conditions[" .. tostring(index) .. "].comparator is unsupported"
+			end
+
+			local value, value_err = as_number(condition.value, "diagram.end.conditions[" .. tostring(index) .. "].value")
+			if not value then
+				return nil, value_err
+			end
+
+			normalized_condition.node_id = node_id
+			normalized_condition.field = field
+			normalized_condition.comparator = comparator
+			normalized_condition.value = value
+		end
+
+		normalized.conditions[#normalized.conditions + 1] = normalized_condition
 	end
 
 	return normalized
@@ -435,12 +716,18 @@ function Loader.validate(diagram)
 		return nil, "diagram.connections must be an array"
 	end
 
+	local variable_values, variable_definitions, variable_err = normalize_variables(diagram.variables)
+	if variable_values == nil then
+		return nil, variable_err
+	end
+
 	local normalized = {
 		name = diagram.name,
 		description = diagram.description,
 		seed = tonumber(diagram.seed) or 1,
 		play_mode = play_mode,
-		variables = type(diagram.variables) == "table" and copy_table(diagram.variables) or {},
+		variables = variable_values,
+		variable_definitions = variable_definitions,
 		nodes = {},
 		connections = {},
 	}

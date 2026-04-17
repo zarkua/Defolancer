@@ -1,0 +1,15 @@
+<graph version="v4.05" name="Legacy Sample" author="Joris Dormans" interval="1" timeMode="asynchronous" distributionMode="fixed speed" speed="1" actions="1" dice="D6" skill="50%" strategy="50%" multiplayer="2" width="600" height="560" numberOfRuns="100" visibleRuns="25" colorCoding="1">
+  <node symbol="Source" x="80" y="220" color="Black" caption="spawn" thickness="2" captionPos="0.25" activationMode="automatic" pullMode="pull any" actions="1" resourceColor="Black" />
+  <node symbol="Pool" x="220" y="220" color="Black" caption="inventory" thickness="2" captionPos="0.25" activationMode="passive" pullMode="push any" actions="1" startingResources="4" capacity="20" displayCapacity="20" />
+  <node symbol="Gate" x="360" y="220" color="Black" caption="loot_gate" thickness="2" captionPos="0.25" activationMode="passive" pullMode="pull any" actions="1" gateType="random" />
+  <node symbol="Delay" x="500" y="280" color="Black" caption="queue" thickness="2" captionPos="0.25" activationMode="passive" pullMode="pull any" actions="1" delayType="queue" />
+  <node symbol="Drain" x="500" y="160" color="Black" caption="sink" thickness="2" captionPos="0.25" activationMode="passive" pullMode="pull any" actions="1" resourceColor="Black" />
+  <node symbol="Register" x="220" y="360" color="Black" caption="momentum" thickness="2" captionPos="0.25" activationMode="interactive" pullMode="pull any" actions="0" min="0" max="100" start="2" step="1" />
+  <node symbol="Chart" x="540" y="420" color="Black" caption="chart" width="120" height="70" scaleX="1" scaleY="1" />
+  <connection type="Resource Connection" start="0" end="1" label="2" position="0.50" color="Black" thickness="2" />
+  <connection type="Resource Connection" start="1" end="2" label="1" position="0.50" color="Black" thickness="2" />
+  <connection type="Resource Connection" start="2" end="4" label="70" position="0.50" color="Black" thickness="2" />
+  <connection type="Resource Connection" start="2" end="3" label="30" position="0.50" color="Black" thickness="2" />
+  <connection type="Resource Connection" start="3" end="4" label="3" position="0.50" color="Black" thickness="2" />
+  <connection type="State Connection" start="1" end="5" label="1" position="0.50" color="Black" thickness="2" />
+</graph>

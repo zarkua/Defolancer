@@ -1,0 +1,20 @@
+{
+  "name": "Machinations",
+  "author": "Joris Dormans",
+  "play_mode": "headless",
+  "distribution_mode": "fixed speed",
+  "interval": 1,
+  "dice": "D6",
+  "skill": "",
+  "multiplayer": "",
+  "strategy": "",
+  "width": 600,
+  "height": 560,
+  "nodes": [],
+  "connections": [],
+  "end": {
+    "max_ticks": 1000,
+    "stop_when_idle": true
+  },
+  "editor_positions": {}
+}
