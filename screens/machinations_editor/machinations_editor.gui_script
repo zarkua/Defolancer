@@ -36,9 +36,9 @@ local HASH_KEY_K = hash("key_k")
 local HASH_KEY_T = hash("key_t")
 
 local NODE_BOX_BASE_SCALE = 0.98
-local NODE_TITLE_BASE_SCALE = 0.52
-local NODE_VALUE_BASE_SCALE = 0.28
-local NODE_ICON_BASE_SCALE = 0.22
+local NODE_TITLE_BASE_SCALE = 0.68
+local NODE_VALUE_BASE_SCALE = 0.38
+local NODE_ICON_BASE_SCALE = 0.28
 local HANDLE_BASE_SCALE = 0.8
 local MINOR_GRID_STEP = 80
 local MAJOR_GRID_STEP = 320
@@ -248,9 +248,9 @@ local function update_responsive_layout(self)
 	gui.set_color(self.bottom_bar, vmath.vector4(0, 0, 0, 0))
 	gui.set_color(self.right_panel, hex_color(0xFBFCFE))
 
-	set_text_layout(self.title_text, frame_left + 20, top_y - 13, 0.94, 0.94)
-	set_text_layout(self.hud_text, frame_left + 22, top_y - 39, 0.34, 0.34)
-	set_text_layout(self.left_help_text, frame_left + 196, top_y - 18, 0.48, 0.48)
+	set_text_layout(self.title_text, frame_left + 20, top_y - 13, 1.12, 1.12)
+	set_text_layout(self.hud_text, frame_left + 22, top_y - 39, 0.46, 0.46)
+	set_text_layout(self.left_help_text, frame_left + 196, top_y - 18, 0.62, 0.62)
 	gui.set_size(self.title_text, vmath.vector3(180, 34, 0))
 	gui.set_size(self.hud_text, vmath.vector3(360, 20, 0))
 	gui.set_size(self.left_help_text, vmath.vector3(math.max(frame_width - 520, 240), 28, 0))
@@ -271,10 +271,10 @@ local function update_responsive_layout(self)
 	set_box_layout(self.chart_area, self.layout.chart_x, self.layout.chart_y, self.layout.chart_w, self.layout.chart_h)
 	set_box_layout(self.distribution_area, self.layout.distribution_x, self.layout.distribution_y, self.layout.distribution_w, self.layout.distribution_h)
 	set_box_layout(self.accuracy_box, right_x + 16, accuracy_box_y, inspector_w - 32, accuracy_box_h)
-	set_text_layout(self.chart_title_text, self.layout.chart_x + 16, self.layout.chart_y - 16, 0.46, 0.46)
-	set_text_layout(self.distribution_title_text, self.layout.distribution_x + 16, self.layout.distribution_y - 16, 0.46, 0.46)
-	set_text_layout(self.accuracy_label_text, right_x + 30, accuracy_box_y - 16, 0.42, 0.42)
-	set_text_layout(self.accuracy_text, right_x + 30, accuracy_box_y - 48, 0.34, 0.34)
+	set_text_layout(self.chart_title_text, self.layout.chart_x + 16, self.layout.chart_y - 16, 0.6, 0.6)
+	set_text_layout(self.distribution_title_text, self.layout.distribution_x + 16, self.layout.distribution_y - 16, 0.6, 0.6)
+	set_text_layout(self.accuracy_label_text, right_x + 30, accuracy_box_y - 16, 0.56, 0.56)
+	set_text_layout(self.accuracy_text, right_x + 30, accuracy_box_y - 48, 0.44, 0.44)
 	gui.set_size(self.chart_title_text, vmath.vector3(self.layout.chart_w - 32, 24, 0))
 	gui.set_size(self.distribution_title_text, vmath.vector3(self.layout.distribution_w - 32, 24, 0))
 	gui.set_size(self.accuracy_label_text, vmath.vector3(inspector_w - 60, 24, 0))
@@ -287,8 +287,8 @@ local function update_responsive_layout(self)
 	gui.set_color(self.accuracy_label_text, hex_color(0x10233A))
 	gui.set_color(self.accuracy_text, hex_color(0x63788F))
 
-	set_text_layout(self.status_title_text, right_x + 18, inspector_y - 10, 0.58, 0.58)
-	set_text_layout(self.status_text, right_x + 18, inspector_y - 34, 0.32, 0.32)
+	set_text_layout(self.status_title_text, right_x + 18, inspector_y - 10, 0.78, 0.78)
+	set_text_layout(self.status_text, right_x + 18, inspector_y - 34, 0.42, 0.42)
 	gui.set_size(self.status_title_text, vmath.vector3(inspector_w - 36, 28, 0))
 	gui.set_size(self.status_text, vmath.vector3(inspector_w - 36, math.max(inspector_y - frame_bottom - 36, 40), 0))
 	gui.set_color(self.status_title_text, hex_color(0x10233A))
@@ -892,7 +892,7 @@ end
 local function set_field_view_layout(view, label_x, y, field_x, field_w, label, value)
 	gui.set_position(view.label, vmath.vector3(label_x, y - 4, 0))
 	gui.set_size(view.label, vmath.vector3(math.max(field_x - label_x - 8, 1), 20, 0))
-	gui.set_scale(view.label, vmath.vector3(0.4, 0.4, 1))
+	gui.set_scale(view.label, vmath.vector3(0.5, 0.5, 1))
 	gui.set_text(view.label, label)
 	gui.set_color(view.label, hex_color(0x73869C))
 
@@ -906,7 +906,7 @@ local function set_field_view_layout(view, label_x, y, field_x, field_w, label, 
 
 	gui.set_position(view.value, vmath.vector3(field_x + 8, y - 4, 0))
 	gui.set_size(view.value, vmath.vector3(math.max(field_w - 12, 1), 20, 0))
-	gui.set_scale(view.value, vmath.vector3(0.4, 0.4, 1))
+	gui.set_scale(view.value, vmath.vector3(0.5, 0.5, 1))
 	gui.set_text(view.value, value)
 	gui.set_color(view.value, hex_color(0x10233A))
 end
@@ -993,7 +993,7 @@ local function render_side_tabs(self)
 		local view = ensure_button_view(self, self.side_tab_views, used, true)
 		view.key = tab.key
 		view.command = nil
-		set_button_view_layout(view, tab_x, tab_y, tab_w, TAB_HEADER_HEIGHT, tab.label, 0.38, self.active_side_tab == tab.key, true)
+		set_button_view_layout(view, tab_x, tab_y, tab_w, TAB_HEADER_HEIGHT, tab.label, 0.48, self.active_side_tab == tab.key, true)
 		tab_x = tab_x + tab_w + BUTTON_GAP
 	end
 
@@ -1015,7 +1015,7 @@ local function render_top_run_button(self)
 		local view = ensure_button_view(self, self.top_button_views, index, false)
 		view.key = button.key
 		view.command = button.command
-		set_button_view_layout(view, x, self.layout.top_y - 12, 80, 30, button.label, 0.4, button.key == "play" and self.autoplay == true, true)
+		set_button_view_layout(view, x, self.layout.top_y - 12, 80, 30, button.label, 0.5, button.key == "play" and self.autoplay == true, true)
 		x = x + 88
 	end
 	trim_extra_button_views(self.top_button_views, #buttons)
@@ -1096,7 +1096,7 @@ local function render_side_buttons(self)
 			local view = ensure_button_view(self, self.side_button_views, used_buttons, false)
 			view.key = button.key
 			view.command = button.command
-			set_button_view_layout(view, list_x, list_y, panel_button_w, 26, button.label, 0.38, false, button.command ~= nil)
+			set_button_view_layout(view, list_x, list_y, panel_button_w, 26, button.label, 0.46, false, button.command ~= nil)
 			list_y = list_y - 30
 		end
 	elseif self.active_side_tab == "run" then
@@ -1105,7 +1105,7 @@ local function render_side_buttons(self)
 			local view = ensure_button_view(self, self.side_button_views, used_buttons, false)
 			view.key = button.key
 			view.command = button.command
-			set_button_view_layout(view, list_x, list_y, panel_button_w, 26, button.label, 0.38, false, true)
+			set_button_view_layout(view, list_x, list_y, panel_button_w, 26, button.label, 0.46, false, true)
 			list_y = list_y - 30
 		end
 		for _, field in ipairs({
