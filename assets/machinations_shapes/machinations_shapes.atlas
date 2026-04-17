@@ -1,0 +1,43 @@
+images {
+  image: "/assets/machinations_shapes/pool.png"
+}
+images {
+  image: "/assets/machinations_shapes/delay.png"
+}
+images {
+  image: "/assets/machinations_shapes/source.png"
+}
+images {
+  image: "/assets/machinations_shapes/drain.png"
+}
+images {
+  image: "/assets/machinations_shapes/gate.png"
+}
+images {
+  image: "/assets/machinations_shapes/converter.png"
+}
+images {
+  image: "/assets/machinations_shapes/trader.png"
+}
+images {
+  image: "/assets/machinations_shapes/register.png"
+}
+images {
+  image: "/assets/machinations_shapes/endcondition.png"
+}
+images {
+  image: "/assets/machinations_shapes/artificialplayer.png"
+}
+images {
+  image: "/assets/machinations_shapes/rect.png"
+}
+images {
+  image: "/assets/machinations_shapes/groupbox.png"
+}
+images {
+  image: "/assets/machinations_shapes/chart.png"
+}
+images {
+  image: "/assets/machinations_shapes/textlabel.png"
+}
+extrude_borders: 2

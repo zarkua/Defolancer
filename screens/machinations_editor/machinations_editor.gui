@@ -7,6 +7,10 @@ fonts {
   name: "body_font"
   font: "/assets/fonts/segoeui-20.font"
 }
+textures {
+  name: "machinations_shapes"
+  texture: "/assets/machinations_shapes/machinations_shapes.atlas"
+}
 nodes {
   position {
   }
@@ -587,6 +591,27 @@ nodes {
     y: -2048.0
   }
   size {
+    x: 92.0
+    y: 92.0
+  }
+  color {
+    x: 1.0
+    y: 1.0
+    z: 1.0
+  }
+  type: TYPE_BOX
+  texture: "machinations_shapes/pool"
+  id: "node_shape_template"
+  layer: "nodes"
+  inherit_alpha: true
+  enabled: false
+}
+nodes {
+  position {
+    x: -2048.0
+    y: -2048.0
+  }
+  size {
     x: 8.0
     y: 8.0
   }
@@ -896,4 +921,5 @@ layers {
 }
 material: "/sharp_sprite/rgss/materials/gui.material"
 adjust_reference: ADJUST_REFERENCE_PARENT
+max_nodes: 1536
 

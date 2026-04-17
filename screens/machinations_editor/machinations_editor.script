@@ -1,11 +1,14 @@
 local Engine = require("modules.machinations.engine")
 local Autogen = require("modules.machinations.autogen")
 local Batch = require("modules.machinations.batch")
+local EditorActions = require("modules.machinations.editor_actions")
 local Io = require("modules.machinations.io")
 local Regression = require("modules.machinations.regression")
 local types = require("modules.machinations.types")
 
 local MSG_EDITOR_RENDER_META = hash("editor_render_meta")
+local MSG_EDITOR_RENDER_INSPECTOR = hash("editor_render_inspector")
+local MSG_EDITOR_RENDER_LIBRARY = hash("editor_render_library")
 local MSG_EDITOR_RENDER_NODES = hash("editor_render_nodes")
 local MSG_EDITOR_RENDER_EDGES = hash("editor_render_edges")
 local MSG_EDITOR_RENDER_CHART = hash("editor_render_chart")
@@ -14,10 +17,21 @@ local MSG_EDITOR_POINTER = hash("editor_pointer")
 local MSG_EDITOR_COMMAND = hash("editor_command")
 
 local DEFAULT_DIAGRAM_PATH = "source/diagrams/crafting_system.json"
+local BLANK_DIAGRAM_PATH = "source/diagrams/offline_blank.json"
 local LEGACY_SAMPLE_PATH = "source/diagrams/legacy_sample_v405.xml"
 local SNAPSHOT_PATH = "source/diagrams/editor_snapshot.json"
 local BATCH_REPORT_PATH = "source/latest_batch_report.json"
 local AUTOGEN_REPORT_PATH = "source/latest_autogen_report.json"
+local SELECTION_EXPORT_PATH = "source/latest_selection_export.json"
+local SVG_EXPORT_PATH = "source/latest_diagram_export.svg"
+local DIAGRAM_LIBRARY = {
+	{ key = "crafting", label = "Crafting", path = "source/diagrams/crafting_system.json" },
+	{ key = "economy", label = "Economy", path = "source/diagrams/economy_loop.json" },
+	{ key = "progression", label = "Progression", path = "source/diagrams/progression_loop.json" },
+	{ key = "farming", label = "Farming", path = "source/diagrams/farming_crafting_flow.json" },
+	{ key = "loot", label = "Loot", path = "source/diagrams/random_loot.json" },
+	{ key = "hourglass", label = "Hourglass", path = "source/diagrams/hourglass.json" },
+}
 
 local AUTOSTEP_INTERVAL = 0.2
 local NODE_WIDTH = 168
@@ -34,18 +48,55 @@ local ANALYTICS_HEIGHT = 220
 local CONTENT_GAP = 16
 local NODE_CHUNK_SIZE = 6
 local EDGE_CHUNK_SIZE = 8
+local INSPECTOR_CHUNK_SIZE = 4
+local LIBRARY_CHUNK_SIZE = 4
+local HISTORY_LIMIT = 16
+local DEFAULT_NUMBER_OF_RUNS = 100
+local DEFAULT_VISIBLE_RUNS = 25
 
 local TOOL_TO_NODE_TYPE = {
 	pool = types.NODE.POOL,
 	source = types.NODE.SOURCE,
 	gate = types.NODE.GATE,
 	drain = types.NODE.DRAIN,
+	converter = types.NODE.CONVERTER,
+	trader = types.NODE.TRADER,
 	delay = types.NODE.DELAY,
 	register = types.NODE.REGISTER,
+	ap = "artificial_player",
+	["end"] = types.NODE.END_CONDITION,
+}
+
+local AP_SCRIPT_PRESETS = {
+	{ key = "blank", label = "Blank", script = "" },
+	{ key = "fire", label = "Fire", script = "fire" },
+	{ key = "fire_all", label = "Fire All", script = "fireall" },
+	{ key = "end_turn", label = "End Turn", script = "endturn" },
+	{ key = "stop_diagram", label = "Stop Diagram", script = "stopdiagram" },
+	{ key = "activate", label = "Activate", script = "activate" },
+	{ key = "deactivate", label = "Deactivate", script = "deactivate" },
 }
 
 local get_payload_dimensions
+local resolve_visual_anchor_position
 local apply_design_diagram
+local build_edge_points
+local build_position_lookup
+local node_id_exists
+local connection_id_exists
+local get_design_node
+local get_visual_node
+local get_design_connection
+local get_visual_connection
+local get_selected_node_ids
+local set_selected_nodes
+local select_single_node
+local select_single_connection
+local sync_run_settings
+local capture_history_snapshot
+local reset_history
+local push_history_state
+local restore_history_snapshot
 
 local function copy_table(value)
 	if type(value) ~= "table" then
@@ -128,6 +179,19 @@ local function is_html5_runtime()
 	return sys_info ~= nil and sys_info.system_name == "HTML5"
 end
 
+local function write_text_file(path, text)
+	local file, open_err = io.open(path, "wb")
+	if not file then
+		return nil, "open failed: " .. tostring(open_err)
+	end
+	local ok, write_err = file:write(text)
+	file:close()
+	if not ok then
+		return nil, "write failed: " .. tostring(write_err)
+	end
+	return true
+end
+
 local function load_diagram_from_path(path)
 	local diagram, err = Io.decode_diagram_file(path)
 	if not diagram then
@@ -136,9 +200,27 @@ local function load_diagram_from_path(path)
 	return diagram
 end
 
-local function load_fallback_diagram()
-	if file_exists(DEFAULT_DIAGRAM_PATH) then
-		local diagram = load_diagram_from_path(DEFAULT_DIAGRAM_PATH)
+local function get_library_entry(diagram_key)
+	for _, item in ipairs(DIAGRAM_LIBRARY) do
+		if item.key == diagram_key then
+			return item
+		end
+	end
+	return nil
+end
+
+local function detect_library_key_from_path(path)
+	for _, item in ipairs(DIAGRAM_LIBRARY) do
+		if item.path == path then
+			return item.key
+		end
+	end
+	return nil
+end
+
+local function build_blank_diagram()
+	if file_exists(BLANK_DIAGRAM_PATH) then
+		local diagram = load_diagram_from_path(BLANK_DIAGRAM_PATH)
 		if diagram ~= nil then
 			return copy_table(diagram)
 		end
@@ -156,6 +238,8 @@ local function load_fallback_diagram()
 		strategy = "",
 		width = 600,
 		height = 560,
+		number_of_runs = DEFAULT_NUMBER_OF_RUNS,
+		visible_runs = DEFAULT_VISIBLE_RUNS,
 		nodes = {},
 		connections = {},
 		["end"] = {
@@ -204,17 +288,27 @@ local function apply_auto_positions(diagram, positions)
 	end
 end
 
-local function node_id_exists(diagram, node_id)
-	for _, node in ipairs(diagram.nodes or {}) do
+node_id_exists = function(diagram, node_id)
+	for _, node in ipairs((diagram and diagram.nodes) or {}) do
 		if node.id == node_id then
+			return true
+		end
+	end
+	for _, visual_node in ipairs((diagram and diagram.legacy_visual_nodes) or {}) do
+		if visual_node.id == node_id then
 			return true
 		end
 	end
 	return false
 end
 
-local function connection_id_exists(diagram, connection_id)
-	for _, connection in ipairs(diagram.connections or {}) do
+connection_id_exists = function(diagram, connection_id)
+	for _, connection in ipairs((diagram and diagram.connections) or {}) do
+		if connection.id == connection_id then
+			return true
+		end
+	end
+	for _, connection in ipairs((diagram and diagram.legacy_visual_connections) or {}) do
 		if connection.id == connection_id then
 			return true
 		end
@@ -231,12 +325,39 @@ local function find_node_index(diagram, node_id)
 	return nil
 end
 
+local function find_visual_node_index(diagram, node_id)
+	for index, visual_node in ipairs(diagram.legacy_visual_nodes or {}) do
+		if visual_node.id == node_id then
+			return index
+		end
+	end
+	return nil
+end
+
 local function remove_connections_for_node(diagram, node_id)
 	for index = #diagram.connections, 1, -1 do
 		local connection = diagram.connections[index]
 		if connection.from == node_id or connection.to == node_id then
 			table.remove(diagram.connections, index)
 		end
+	end
+	for index = #(diagram.legacy_visual_connections or {}), 1, -1 do
+		local connection = diagram.legacy_visual_connections[index]
+		if connection.from == node_id or connection.to == node_id then
+			table.remove(diagram.legacy_visual_connections, index)
+		end
+	end
+end
+
+local function set_visual_anchor_position(visual_node, center_x, center_y)
+	local width, height = get_payload_dimensions(nil, visual_node)
+	local symbol = tostring(visual_node.symbol or "")
+	if symbol == "Chart" or symbol == "GroupBox" then
+		visual_node.x = center_x - width * 0.5
+		visual_node.y = center_y + height * 0.5
+	else
+		visual_node.x = center_x
+		visual_node.y = center_y
 	end
 end
 
@@ -250,8 +371,20 @@ local function setup_serials(self)
 			self.next_node_serial = suffix + 1
 		end
 	end
+	for _, visual_node in ipairs(self.design_diagram.legacy_visual_nodes or {}) do
+		local suffix = tonumber(string.match(visual_node.id or "", "_(%d+)$"))
+		if suffix ~= nil and suffix >= self.next_node_serial then
+			self.next_node_serial = suffix + 1
+		end
+	end
 
 	for _, connection in ipairs(self.design_diagram.connections or {}) do
+		local suffix = tonumber(string.match(connection.id or "", "_(%d+)$"))
+		if suffix ~= nil and suffix >= self.next_connection_serial then
+			self.next_connection_serial = suffix + 1
+		end
+	end
+	for _, connection in ipairs(self.design_diagram.legacy_visual_connections or {}) do
 		local suffix = tonumber(string.match(connection.id or "", "_(%d+)$"))
 		if suffix ~= nil and suffix >= self.next_connection_serial then
 			self.next_connection_serial = suffix + 1
@@ -307,17 +440,47 @@ local function world_to_screen(self, world_x, world_y, viewport_w, viewport_h)
 end
 
 local function find_node_at(self, world_x, world_y)
+	for index = #(self.design_diagram.legacy_visual_nodes or {}), 1, -1 do
+		local visual_node = self.design_diagram.legacy_visual_nodes[index]
+		if tostring(visual_node.symbol or "") ~= "GroupBox" then
+			local width, height = get_payload_dimensions(nil, visual_node)
+			local center_x, center_y = resolve_visual_anchor_position(visual_node, width, height)
+			local dx = math.abs(world_x - center_x)
+			local dy = math.abs(world_y - center_y)
+			if dx <= width * 0.5 and dy <= height * 0.5 then
+				return visual_node.id
+			end
+		end
+	end
+
 	for index = #self.design_diagram.nodes, 1, -1 do
 		local node = self.design_diagram.nodes[index]
 		local pos = self.editor_positions[node.id]
 		if pos ~= nil then
-			local width, height = get_payload_dimensions(node.type)
+			local node_type = node.type
+			if type(node.data) == "table" and node.data.ap_functional == true then
+				node_type = "artificial_player"
+			end
+			local width, height = get_payload_dimensions(node_type)
 			local half_w = width * 0.5
 			local half_h = height * 0.5
 			local dx = math.abs(world_x - pos.x)
 			local dy = math.abs(world_y - pos.y)
 			if dx <= half_w and dy <= half_h then
 				return node.id
+			end
+		end
+	end
+
+	for index = #(self.design_diagram.legacy_visual_nodes or {}), 1, -1 do
+		local visual_node = self.design_diagram.legacy_visual_nodes[index]
+		if tostring(visual_node.symbol or "") == "GroupBox" then
+			local width, height = get_payload_dimensions(nil, visual_node)
+			local center_x, center_y = resolve_visual_anchor_position(visual_node, width, height)
+			local dx = math.abs(world_x - center_x)
+			local dy = math.abs(world_y - center_y)
+			if dx <= width * 0.5 and dy <= height * 0.5 then
+				return visual_node.id
 			end
 		end
 	end
@@ -333,7 +496,11 @@ local function find_handle_at(self, screen_x, screen_y, viewport_w, viewport_h)
 		local node = self.design_diagram.nodes[index]
 		local pos = self.editor_positions[node.id]
 		if pos ~= nil then
-			local width = get_payload_dimensions(node.type)
+			local node_type = node.type
+			if type(node.data) == "table" and node.data.ap_functional == true then
+				node_type = "artificial_player"
+			end
+			local width = get_payload_dimensions(node_type)
 			local node_screen_x, node_screen_y = world_to_screen(self, pos.x, pos.y, viewport_w, viewport_h)
 			local handle_x = node_screen_x + width * 0.5 + 10
 			local handle_y = node_screen_y
@@ -347,13 +514,139 @@ local function find_handle_at(self, screen_x, screen_y, viewport_w, viewport_h)
 	return nil
 end
 
-local function get_design_node(diagram, node_id)
+get_design_node = function(diagram, node_id)
 	for _, node in ipairs(diagram.nodes or {}) do
 		if node.id == node_id then
 			return node
 		end
 	end
 	return nil
+end
+
+get_visual_node = function(diagram, node_id)
+	for _, visual_node in ipairs(diagram.legacy_visual_nodes or {}) do
+		if visual_node.id == node_id then
+			return visual_node
+		end
+	end
+	return nil
+end
+
+get_design_connection = function(diagram, connection_id)
+	for _, connection in ipairs(diagram.connections or {}) do
+		if connection.id == connection_id then
+			return connection
+		end
+	end
+	return nil
+end
+
+get_visual_connection = function(diagram, connection_id)
+	for _, connection in ipairs(diagram.legacy_visual_connections or {}) do
+		if connection.id == connection_id then
+			return connection
+		end
+	end
+	return nil
+end
+
+local function distance_to_segment(point_x, point_y, x1, y1, x2, y2)
+	local dx = x2 - x1
+	local dy = y2 - y1
+	local length_sq = dx * dx + dy * dy
+	if length_sq <= 0.0001 then
+		local px = point_x - x1
+		local py = point_y - y1
+		return math.sqrt(px * px + py * py)
+	end
+
+	local t = ((point_x - x1) * dx + (point_y - y1) * dy) / length_sq
+	t = clamp(t, 0, 1)
+	local nearest_x = x1 + dx * t
+	local nearest_y = y1 + dy * t
+	local diff_x = point_x - nearest_x
+	local diff_y = point_y - nearest_y
+	return math.sqrt(diff_x * diff_x + diff_y * diff_y)
+end
+
+local function find_connection_at(self, world_x, world_y)
+	local positions = build_position_lookup(self)
+	local threshold = clamp(12 / math.max(self.camera_zoom, 0.2), 8, 22)
+	local best_distance = nil
+	local best_id = nil
+
+	local function test_points(connection_id, points)
+		if type(points) ~= "table" or #points < 2 then
+			return
+		end
+		for index = 1, #points - 1 do
+			local from_point = points[index]
+			local to_point = points[index + 1]
+			local distance = distance_to_segment(
+				world_x,
+				world_y,
+				tonumber(from_point.x) or 0,
+				tonumber(from_point.y) or 0,
+				tonumber(to_point.x) or 0,
+				tonumber(to_point.y) or 0
+			)
+			if distance <= threshold and (best_distance == nil or distance < best_distance) then
+				best_distance = distance
+				best_id = connection_id
+			end
+		end
+	end
+
+	for _, connection in ipairs(self.design_diagram.connections or {}) do
+		local from_pos = positions[connection.from]
+		local to_pos = positions[connection.to]
+		if from_pos ~= nil and to_pos ~= nil then
+			test_points(
+				connection.id,
+				build_edge_points(from_pos, to_pos, connection.data and connection.data.legacy_points or nil, connection.flow_mode)
+			)
+		end
+	end
+
+	for _, connection in ipairs(self.design_diagram.legacy_visual_connections or {}) do
+		if connection.floating and type(connection.points) == "table" and #connection.points >= 2 then
+			test_points(connection.id, connection.points)
+		else
+			local from_pos = connection.from and positions[connection.from] or nil
+			local to_pos = connection.to and positions[connection.to] or nil
+			if from_pos ~= nil and to_pos ~= nil then
+				test_points(connection.id, build_edge_points(from_pos, to_pos, connection.points, types.FLOW_MODE.PUSH))
+			end
+		end
+	end
+
+	return best_id
+end
+
+local function describe_connection_type(connection)
+	if connection == nil then
+		return "-"
+	end
+	if connection.type == types.CONNECTION.STATE then
+		return "state"
+	end
+	return "resource"
+end
+
+local function describe_connection_label(connection)
+	if connection == nil then
+		return "-"
+	end
+	if type(connection.label) == "string" and connection.label ~= "" then
+		return connection.label
+	end
+	if type(connection.data) == "table" and type(connection.data.legacy_label) == "string" and connection.data.legacy_label ~= "" then
+		return connection.data.legacy_label
+	end
+	if connection.type == types.CONNECTION.STATE then
+		return string.format("%s %s %s", tostring(connection.source_field or "resources"), tostring(connection.comparator or ">"), tostring(connection.value or 0))
+	end
+	return tostring(connection.amount or 1)
 end
 
 local function get_node_icon(node_type)
@@ -368,6 +661,7 @@ local function get_node_icon(node_type)
 		delay = "[]",
 		queue = "[]",
 		end_condition = "!",
+		artificial_player = "AP",
 		legacy_chart = "CH",
 		legacy_textlabel = "T",
 		legacy_groupbox = "GB",
@@ -389,6 +683,7 @@ local function get_node_shape(node_type)
 		delay = "delay",
 		queue = "delay",
 		end_condition = "endcondition",
+		artificial_player = "artificialplayer",
 		legacy_chart = "chart",
 		legacy_textlabel = "textlabel",
 		legacy_groupbox = "groupbox",
@@ -432,19 +727,28 @@ get_payload_dimensions = function(node_type, visual_node)
 	if node_type == types.NODE.SOURCE or node_type == types.NODE.DRAIN or node_type == types.NODE.GATE then
 		return 94, 72
 	end
+	if node_type == types.NODE.POOL then
+		return 112, 92
+	end
+	if node_type == types.NODE.CONVERTER or node_type == types.NODE.TRADER then
+		return 118, 82
+	end
 	if node_type == types.NODE.REGISTER then
 		return 92, 64
 	end
+	if node_type == "artificial_player" then
+		return 92, 72
+	end
 	if node_type == types.NODE.DELAY or node_type == types.NODE.QUEUE then
-		return 116, 54
+		return 104, 92
 	end
 	if node_type == types.NODE.END_CONDITION then
-		return 90, 56
+		return 92, 74
 	end
 	return 156, 64
 end
 
-local function resolve_visual_anchor_position(visual_node, width, height)
+resolve_visual_anchor_position = function(visual_node, width, height)
 	local x = tonumber(visual_node.x) or 0
 	local y = tonumber(visual_node.y) or 0
 	local symbol = tostring(visual_node.symbol or "")
@@ -458,6 +762,9 @@ end
 local function get_node_value_text(node, runtime_node)
 	if node.type == types.NODE.REGISTER then
 		local value = runtime_node and runtime_node.register_value or node.register_value or 0
+		if type(node.data) == "table" and node.data.ap_functional == true then
+			return string.format("APT:%d", math.floor(tonumber(node.actions_per_turn) or 1))
+		end
 		return string.format("v:%.2f", tonumber(value) or 0)
 	end
 	if node.type == types.NODE.DELAY or node.type == types.NODE.QUEUE then
@@ -465,6 +772,54 @@ local function get_node_value_text(node, runtime_node)
 	end
 	local value = runtime_node and runtime_node.resources or node.initial_resources or 0
 	return string.format("r:%d", math.floor(tonumber(value) or 0))
+end
+
+local function get_ap_script_preset_index(node)
+	local preset_key = nil
+	if type(node.data) == "table" and type(node.data.ap_script_preset) == "string" then
+		preset_key = node.data.ap_script_preset
+	end
+	if preset_key ~= nil then
+		for index, preset in ipairs(AP_SCRIPT_PRESETS) do
+			if preset.key == preset_key then
+				return index
+			end
+		end
+	end
+
+	local script = tostring(node.script or "")
+	for index, preset in ipairs(AP_SCRIPT_PRESETS) do
+		if preset.script == script then
+			return index
+		end
+	end
+	return 1
+end
+
+local function get_ap_script_display(node)
+	local preset = AP_SCRIPT_PRESETS[get_ap_script_preset_index(node)]
+	if preset == nil then
+		return "-"
+	end
+	if preset.script == "" then
+		return preset.label
+	end
+	return string.format("%s: %s", preset.label, preset.script)
+end
+
+local function set_ap_script_preset(node, direction)
+	node.data = node.data or {}
+	local next_index = get_ap_script_preset_index(node) + direction
+	if next_index < 1 then
+		next_index = #AP_SCRIPT_PRESETS
+	elseif next_index > #AP_SCRIPT_PRESETS then
+		next_index = 1
+	end
+
+	local preset = AP_SCRIPT_PRESETS[next_index]
+	node.data.ap_script_preset = preset.key
+	node.script = preset.script
+	return true, "Script: " .. preset.label
 end
 
 local function reverse_points(points)
@@ -478,7 +833,7 @@ local function reverse_points(points)
 	return reversed
 end
 
-local function build_edge_points(from_pos, to_pos, legacy_points, flow_mode)
+build_edge_points = function(from_pos, to_pos, legacy_points, flow_mode)
 	local points = {}
 	if from_pos ~= nil then
 		points[#points + 1] = { x = from_pos.x, y = from_pos.y }
@@ -498,7 +853,7 @@ local function build_edge_points(from_pos, to_pos, legacy_points, flow_mode)
 	return points
 end
 
-local function build_position_lookup(self)
+build_position_lookup = function(self)
 	local lookup = {}
 	for node_id, pos in pairs(self.editor_positions or {}) do
 		lookup[node_id] = {
@@ -532,9 +887,12 @@ end
 
 local function compose_status_text(self)
 	local selected = self.selected_node_id or "-"
+	local selected_connection = self.selected_connection_id or "-"
 	local link = self.link_from_node_id or "-"
 	local status_line = self.status_line or ""
 	local selected_node = get_design_node(self.design_diagram, selected)
+	local selected_visual = get_visual_node(self.design_diagram, selected)
+	local selected_connection_object = get_design_connection(self.design_diagram, selected_connection) or get_visual_connection(self.design_diagram, selected_connection)
 	local node_type = "-"
 	local trigger_mode = "-"
 	local rate = 0
@@ -582,6 +940,15 @@ local function compose_status_text(self)
 		table.insert(lines, 1, string.format("Trigger       %s", trigger_mode))
 		table.insert(lines, 1, string.format("Selection     %s", selected))
 		table.insert(lines, 2, string.format("Node Type     %s", node_type))
+	elseif selected_visual ~= nil then
+		table.insert(lines, 1, string.format("Link          %s", link))
+		table.insert(lines, 1, string.format("Selection     %s", selected))
+		table.insert(lines, 2, string.format("Node Type     legacy_%s", string.lower(tostring(selected_visual.symbol or "node"))))
+	elseif selected_connection_object ~= nil then
+		table.insert(lines, 1, string.format("Connection    %s", selected_connection))
+		table.insert(lines, 2, string.format("Conn Type     %s", describe_connection_type(selected_connection_object)))
+		table.insert(lines, 3, string.format("From          %s", tostring(selected_connection_object.from or "-")))
+		table.insert(lines, 4, string.format("To            %s", tostring(selected_connection_object.to or "-")))
 	end
 
 	if status_line ~= "" then
@@ -596,6 +963,73 @@ local function compose_status_text(self)
 	return table.concat(lines, "\n")
 end
 
+local function encode_command_part(value)
+	if value == nil then
+		return "-"
+	end
+	local text = tostring(value)
+	text = string.gsub(text, ":", "_")
+	return text
+end
+
+local function make_cycle_command(scope, target_id, key, direction)
+	return table.concat({
+		"prop_cycle",
+		scope,
+		encode_command_part(target_id),
+		key,
+		tostring(direction or 1),
+	}, ":")
+end
+
+local function make_adjust_command(scope, target_id, key, delta)
+	return table.concat({
+		"prop_adjust",
+		scope,
+		encode_command_part(target_id),
+		key,
+		tostring(delta or 0),
+	}, ":")
+end
+
+local function make_toggle_command(scope, target_id, key)
+	return table.concat({
+		"prop_toggle",
+		scope,
+		encode_command_part(target_id),
+		key,
+	}, ":")
+end
+
+local function cycle_value(current_value, values, direction)
+	local size = #values
+	if size == 0 then
+		return current_value
+	end
+
+	local index = 1
+	for candidate_index, candidate in ipairs(values) do
+		if candidate == current_value then
+			index = candidate_index
+			break
+		end
+	end
+
+	local step = direction or 1
+	local next_index = ((index - 1 + step) % size) + 1
+	return values[next_index]
+end
+
+local function normalize_graph_time_mode(diagram)
+	if type(diagram.time_mode) == "string" and diagram.time_mode ~= "" then
+		return diagram.time_mode
+	end
+	if diagram.play_mode == types.PLAY_MODE.INTERACTIVE then
+		return "turn_based"
+	end
+	return "asynchronous"
+end
+
 local function build_inspector_payload(self)
 	local payload = {
 		title = "Machinations [Graph]",
@@ -603,86 +1037,511 @@ local function build_inspector_payload(self)
 		status_line = self.status_line or "",
 	}
 
-	local function push(label, value)
+	local function push(label, value, options)
 		payload.fields[#payload.fields + 1] = {
 			label = label,
 			value = tostring(value),
+			left_command = options and options.left_command or nil,
+			right_command = options and options.right_command or nil,
+			click_command = options and options.click_command or nil,
+			editable = options and options.editable == true or false,
 		}
+	end
+
+	local selected_ids = get_selected_node_ids(self)
+	if #selected_ids > 1 then
+		payload.title = string.format("Machinations [Selection x%d]", #selected_ids)
+		push("Selection", #selected_ids)
+		push("Primary", self.selected_node_id or selected_ids[1] or "-")
+		push("Runs", self.number_of_runs or DEFAULT_NUMBER_OF_RUNS)
+		push("Visible Runs", self.visible_runs or DEFAULT_VISIBLE_RUNS)
+		push("Width", math.floor(tonumber(self.design_diagram.width) or 600))
+		push("Height", math.floor(tonumber(self.design_diagram.height) or 560))
+		return payload
 	end
 
 	local selected_node = get_design_node(self.design_diagram, self.selected_node_id)
 	if selected_node ~= nil then
 		local runtime_node = get_runtime_node(self, selected_node.id)
+		local is_artificial_player = type(selected_node.data) == "table" and selected_node.data.ap_functional == true
 		payload.title = "Machinations [" .. selected_node.id .. "]"
 		push("Name", selected_node.id)
-		push("Node Type", selected_node.type or "-")
-		push("Trigger", selected_node.trigger_mode or "-")
-		push("Rate", math.floor(tonumber(selected_node.rate) or 0))
-		push("Capacity", math.floor(tonumber(selected_node.capacity) or -1))
-		push("Resources", math.floor(tonumber(runtime_node and runtime_node.resources or selected_node.initial_resources or 0)))
+		push("Node Type", is_artificial_player and "artificial_player" or (selected_node.type or "-"))
+		push(
+			"Activation",
+			selected_node.data and selected_node.data.legacy_activation_mode or selected_node.trigger_mode or "-",
+			{
+				left_command = make_cycle_command("node", selected_node.id, "trigger_mode", -1),
+				right_command = make_cycle_command("node", selected_node.id, "trigger_mode", 1),
+				editable = true,
+			}
+		)
+		if not is_artificial_player then
+			push(
+				"Rate",
+				math.floor(tonumber(selected_node.rate) or 0),
+				{
+					left_command = make_adjust_command("node", selected_node.id, "rate", -1),
+					right_command = make_adjust_command("node", selected_node.id, "rate", 1),
+					editable = true,
+				}
+			)
+			push(
+				"Capacity",
+				math.floor(tonumber(selected_node.capacity) or -1),
+				{
+					left_command = make_adjust_command("node", selected_node.id, "capacity", -5),
+					right_command = make_adjust_command("node", selected_node.id, "capacity", 5),
+					editable = true,
+				}
+			)
+		else
+			push(
+				"Actions/turn",
+				math.floor(tonumber(selected_node.actions_per_turn) or 1),
+				{
+					left_command = make_adjust_command("node", selected_node.id, "actions_per_turn", -1),
+					right_command = make_adjust_command("node", selected_node.id, "actions_per_turn", 1),
+					editable = true,
+				}
+			)
+			push(
+				"Script",
+				get_ap_script_display(selected_node),
+				{
+					left_command = make_cycle_command("node", selected_node.id, "script", -1),
+					right_command = make_cycle_command("node", selected_node.id, "script", 1),
+					click_command = make_cycle_command("node", selected_node.id, "script", 1),
+					editable = true,
+				}
+			)
+		end
+		if selected_node.type == types.NODE.REGISTER and not is_artificial_player then
+			push(
+				"Value",
+				math.floor(tonumber(runtime_node and runtime_node.register_value or selected_node.register_value or 0)),
+				{
+					left_command = make_adjust_command("node", selected_node.id, "register_value", -1),
+					right_command = make_adjust_command("node", selected_node.id, "register_value", 1),
+					editable = true,
+				}
+			)
+		elseif not is_artificial_player then
+			push(
+				"Resources",
+				math.floor(tonumber(runtime_node and runtime_node.resources or selected_node.initial_resources or 0)),
+				{
+					left_command = make_adjust_command("node", selected_node.id, "initial_resources", -1),
+					right_command = make_adjust_command("node", selected_node.id, "initial_resources", 1),
+					editable = true,
+				}
+			)
+		end
 		push("Link", self.link_from_node_id or "-")
 		if type(selected_node.data) == "table" then
 			if selected_node.data.legacy_caption and selected_node.data.legacy_caption ~= "" then
 				push("Caption", selected_node.data.legacy_caption)
 			end
-			if selected_node.data.legacy_activation_mode and selected_node.data.legacy_activation_mode ~= "" then
-				push("Activation", selected_node.data.legacy_activation_mode)
-			end
 			if selected_node.data.legacy_pull_mode and selected_node.data.legacy_pull_mode ~= "" then
-				push("Pull Mode", selected_node.data.legacy_pull_mode)
+				push(
+					"Pull Mode",
+					selected_node.data.legacy_pull_mode,
+					{
+						left_command = make_cycle_command("node", selected_node.id, "pull_mode", -1),
+						right_command = make_cycle_command("node", selected_node.id, "pull_mode", 1),
+						editable = true,
+					}
+				)
 			end
 			if selected_node.data.legacy_actions ~= nil then
-				push("Actions", selected_node.data.legacy_actions)
+				push(
+					"Actions",
+					selected_node.data.legacy_actions,
+					{
+						left_command = make_adjust_command("node", selected_node.id, "legacy_actions", -1),
+						right_command = make_adjust_command("node", selected_node.id, "legacy_actions", 1),
+						editable = true,
+					}
+				)
 			end
 			if selected_node.data.legacy_gate_type and selected_node.data.legacy_gate_type ~= "" then
-				push("Gate Type", selected_node.data.legacy_gate_type)
+				push(
+					"Gate Type",
+					selected_node.data.legacy_gate_type,
+					{
+						left_command = make_cycle_command("node", selected_node.id, "gate_type", -1),
+						right_command = make_cycle_command("node", selected_node.id, "gate_type", 1),
+						editable = true,
+					}
+				)
 			end
 			if selected_node.data.legacy_delay_type and selected_node.data.legacy_delay_type ~= "" then
-				push("Delay Type", selected_node.data.legacy_delay_type)
+				push(
+					"Delay Type",
+					selected_node.data.legacy_delay_type,
+					{
+						left_command = make_cycle_command("node", selected_node.id, "delay_type", -1),
+						right_command = make_cycle_command("node", selected_node.id, "delay_type", 1),
+						editable = true,
+					}
+				)
 			end
 			if selected_node.data.legacy_display_capacity ~= nil then
-				push("Display Cap.", selected_node.data.legacy_display_capacity)
+				push(
+					"Display Cap.",
+					selected_node.data.legacy_display_capacity,
+					{
+						left_command = make_adjust_command("node", selected_node.id, "display_capacity", -1),
+						right_command = make_adjust_command("node", selected_node.id, "display_capacity", 1),
+						editable = true,
+					}
+				)
 			end
 			if selected_node.data.legacy_min ~= nil then
-				push("Min", selected_node.data.legacy_min)
+				push(
+					"Min",
+					selected_node.data.legacy_min,
+					{
+						left_command = make_adjust_command("node", selected_node.id, "legacy_min", -1),
+						right_command = make_adjust_command("node", selected_node.id, "legacy_min", 1),
+						editable = true,
+					}
+				)
 			end
 			if selected_node.data.legacy_max ~= nil then
-				push("Max", selected_node.data.legacy_max)
+				push(
+					"Max",
+					selected_node.data.legacy_max,
+					{
+						left_command = make_adjust_command("node", selected_node.id, "legacy_max", -1),
+						right_command = make_adjust_command("node", selected_node.id, "legacy_max", 1),
+						editable = true,
+					}
+				)
 			end
 			if selected_node.data.legacy_step ~= nil then
-				push("Step", selected_node.data.legacy_step)
+				push(
+					"Step",
+					selected_node.data.legacy_step,
+					{
+						left_command = make_adjust_command("node", selected_node.id, "legacy_step", -1),
+						right_command = make_adjust_command("node", selected_node.id, "legacy_step", 1),
+						editable = true,
+					}
+				)
 			end
 			if selected_node.data.register_expression and selected_node.data.register_expression ~= "" then
 				push("Formula", selected_node.data.register_expression)
 			end
 			if selected_node.data.legacy_resource_color and selected_node.data.legacy_resource_color ~= "" then
-				push("Res Color", selected_node.data.legacy_resource_color)
+				push(
+					"Res Color",
+					selected_node.data.legacy_resource_color,
+					{
+						left_command = make_cycle_command("node", selected_node.id, "resource_color", -1),
+						right_command = make_cycle_command("node", selected_node.id, "resource_color", 1),
+						editable = true,
+					}
+				)
 			end
 		end
+		return payload
+	end
+
+	local selected_visual = get_visual_node(self.design_diagram, self.selected_node_id)
+	if selected_visual ~= nil then
+		payload.title = "Machinations [" .. selected_visual.id .. "]"
+		push("Name", selected_visual.id)
+		push("Node Type", "legacy_" .. string.lower(tostring(selected_visual.symbol or "node")))
+		push("Caption", selected_visual.caption or "")
+		push(
+			"Width",
+			math.floor(tonumber(selected_visual.width) or 0),
+			{
+				left_command = make_adjust_command("visual", selected_visual.id, "width", -20),
+				right_command = make_adjust_command("visual", selected_visual.id, "width", 20),
+				editable = true,
+			}
+		)
+		push(
+			"Height",
+			math.floor(tonumber(selected_visual.height) or 0),
+			{
+				left_command = make_adjust_command("visual", selected_visual.id, "height", -20),
+				right_command = make_adjust_command("visual", selected_visual.id, "height", 20),
+				editable = true,
+			}
+		)
+		if selected_visual.actions_per_turn ~= nil then
+			push(
+				"Actions",
+				selected_visual.actions_per_turn,
+				{
+					left_command = make_adjust_command("visual", selected_visual.id, "actions_per_turn", -1),
+					right_command = make_adjust_command("visual", selected_visual.id, "actions_per_turn", 1),
+					editable = true,
+				}
+			)
+		end
+		if selected_visual.gate_type ~= nil and selected_visual.gate_type ~= "" then
+			push(
+				"Gate Type",
+				selected_visual.gate_type,
+				{
+					left_command = make_cycle_command("visual", selected_visual.id, "gate_type", -1),
+					right_command = make_cycle_command("visual", selected_visual.id, "gate_type", 1),
+					editable = true,
+				}
+			)
+		end
+		if selected_visual.delay_type ~= nil and selected_visual.delay_type ~= "" then
+			push(
+				"Delay Type",
+				selected_visual.delay_type,
+				{
+					left_command = make_cycle_command("visual", selected_visual.id, "delay_type", -1),
+					right_command = make_cycle_command("visual", selected_visual.id, "delay_type", 1),
+					editable = true,
+				}
+			)
+		end
+		if selected_visual.scale_x ~= nil then
+			push(
+				"Scale X",
+				string.format("%.1f", tonumber(selected_visual.scale_x) or 1),
+				{
+					left_command = make_adjust_command("visual", selected_visual.id, "scale_x", -0.5),
+					right_command = make_adjust_command("visual", selected_visual.id, "scale_x", 0.5),
+					editable = true,
+				}
+			)
+		end
+		if selected_visual.scale_y ~= nil then
+			push(
+				"Scale Y",
+				string.format("%.1f", tonumber(selected_visual.scale_y) or 1),
+				{
+					left_command = make_adjust_command("visual", selected_visual.id, "scale_y", -0.5),
+					right_command = make_adjust_command("visual", selected_visual.id, "scale_y", 0.5),
+					editable = true,
+				}
+			)
+		end
+		return payload
+	end
+
+	local selected_connection = get_design_connection(self.design_diagram, self.selected_connection_id)
+	if selected_connection ~= nil then
+		payload.title = "Machinations [" .. selected_connection.id .. "]"
+		push("Type", describe_connection_type(selected_connection))
+		push("From", selected_connection.from or "-")
+		push("To", selected_connection.to or "-")
+		push("Label", describe_connection_label(selected_connection))
+		if selected_connection.type == types.CONNECTION.STATE then
+			push(
+				"Action",
+				selected_connection.action or types.STATE_ACTION.SET_ENABLED,
+				{
+					left_command = make_cycle_command("connection", selected_connection.id, "action", -1),
+					right_command = make_cycle_command("connection", selected_connection.id, "action", 1),
+					editable = true,
+				}
+			)
+			push(
+				"Source Field",
+				selected_connection.source_field or types.STATE_FIELD.RESOURCES,
+				{
+					left_command = make_cycle_command("connection", selected_connection.id, "source_field", -1),
+					right_command = make_cycle_command("connection", selected_connection.id, "source_field", 1),
+					editable = true,
+				}
+			)
+			push(
+				"Comparator",
+				selected_connection.comparator or types.COMPARATOR.GREATER,
+				{
+					left_command = make_cycle_command("connection", selected_connection.id, "comparator", -1),
+					right_command = make_cycle_command("connection", selected_connection.id, "comparator", 1),
+					editable = true,
+				}
+			)
+			push(
+				"Value",
+				tonumber(selected_connection.value) or 0,
+				{
+					left_command = make_adjust_command("connection", selected_connection.id, "value", -1),
+					right_command = make_adjust_command("connection", selected_connection.id, "value", 1),
+					editable = true,
+				}
+			)
+			push(
+				"Scale",
+				string.format("%.2f", tonumber(selected_connection.scale) or 1),
+				{
+					left_command = make_adjust_command("connection", selected_connection.id, "scale", -0.25),
+					right_command = make_adjust_command("connection", selected_connection.id, "scale", 0.25),
+					editable = true,
+				}
+			)
+			push(
+				"Use Delta",
+				selected_connection.use_delta == true and "on" or "off",
+				{
+					click_command = make_toggle_command("connection", selected_connection.id, "use_delta"),
+					editable = true,
+				}
+			)
+			push(
+				"Enabled",
+				selected_connection.target_enabled == false and "off" or "on",
+				{
+					click_command = make_toggle_command("connection", selected_connection.id, "target_enabled"),
+					editable = true,
+				}
+			)
+			push(
+				"Mode Op",
+				selected_connection.register_op or "set",
+				{
+					left_command = make_cycle_command("connection", selected_connection.id, "register_op", -1),
+					right_command = make_cycle_command("connection", selected_connection.id, "register_op", 1),
+					editable = true,
+				}
+			)
+			if selected_connection.target_trigger_mode ~= nil then
+				push(
+					"Target Mode",
+					selected_connection.target_trigger_mode,
+					{
+						left_command = make_cycle_command("connection", selected_connection.id, "target_trigger_mode", -1),
+						right_command = make_cycle_command("connection", selected_connection.id, "target_trigger_mode", 1),
+						editable = true,
+					}
+				)
+			end
+		else
+			push(
+				"Flow",
+				selected_connection.flow_mode or types.FLOW_MODE.PUSH,
+				{
+					left_command = make_cycle_command("connection", selected_connection.id, "flow_mode", -1),
+					right_command = make_cycle_command("connection", selected_connection.id, "flow_mode", 1),
+					editable = true,
+				}
+			)
+			push(
+				"Amount",
+				tonumber(selected_connection.amount) or 1,
+				{
+					left_command = make_adjust_command("connection", selected_connection.id, "amount", -1),
+					right_command = make_adjust_command("connection", selected_connection.id, "amount", 1),
+					editable = true,
+				}
+			)
+		end
+		return payload
+	end
+
+	local selected_visual_connection = get_visual_connection(self.design_diagram, self.selected_connection_id)
+	if selected_visual_connection ~= nil then
+		payload.title = "Machinations [" .. selected_visual_connection.id .. "]"
+		push("Type", describe_connection_type(selected_visual_connection))
+		push("From", selected_visual_connection.from or "-")
+		push("To", selected_visual_connection.to or "-")
+		push("Label", describe_connection_label(selected_visual_connection))
 		return payload
 	end
 
 	push("Name", self.design_diagram.name or "Machinations")
 	push("Author", self.design_diagram.author or "-")
 	local legacy_import = self.design_diagram.legacy_import
-	if self.design_diagram.play_mode == types.PLAY_MODE.INTERACTIVE then
-		push("Time Mode", "turn-based")
-	else
-		push("Time Mode", "asynchronous")
-	end
-	push("Interval", string.format("%.1f", tonumber(self.design_diagram.interval) or 1))
-	push("Distribution", self.design_diagram.distribution_mode or "fixed speed")
+	push(
+		"Time Mode",
+		normalize_graph_time_mode(self.design_diagram),
+		{
+			left_command = make_cycle_command("graph", "-", "time_mode", -1),
+			right_command = make_cycle_command("graph", "-", "time_mode", 1),
+			editable = true,
+		}
+	)
+	push(
+		"Interval",
+		string.format("%.1f", tonumber(self.design_diagram.interval) or 1),
+		{
+			left_command = make_adjust_command("graph", "-", "interval", -0.5),
+			right_command = make_adjust_command("graph", "-", "interval", 0.5),
+			editable = true,
+		}
+	)
+	push(
+		"Distribution",
+		self.design_diagram.distribution_mode or "fixed speed",
+		{
+			left_command = make_cycle_command("graph", "-", "distribution_mode", -1),
+			right_command = make_cycle_command("graph", "-", "distribution_mode", 1),
+			editable = true,
+		}
+	)
 	local color_coding = self.design_diagram.color_coding
 	if color_coding == nil and type(legacy_import) == "table" then
 		color_coding = legacy_import.color_coding == 1
 	end
-	push("Color Coding", color_coding and "on" or "off")
-	push("Dice", self.design_diagram.dice or "D6")
+	push(
+		"Color Coding",
+		color_coding and "on" or "off",
+		{
+			click_command = make_toggle_command("graph", "-", "color_coding"),
+			editable = true,
+		}
+	)
+	push(
+		"Dice",
+		self.design_diagram.dice or "D6",
+		{
+			left_command = make_cycle_command("graph", "-", "dice", -1),
+			right_command = make_cycle_command("graph", "-", "dice", 1),
+			editable = true,
+		}
+	)
 	push("Skill", self.design_diagram.skill or "")
 	push("Multiplayer", self.design_diagram.multiplayer or "")
 	push("Strategy", self.design_diagram.strategy or "")
-	push("Width", math.floor(tonumber(self.design_diagram.width) or 600))
-	push("Height", math.floor(tonumber(self.design_diagram.height) or 560))
+	push(
+		"Runs",
+		self.number_of_runs or DEFAULT_NUMBER_OF_RUNS,
+		{
+			left_command = make_adjust_command("graph", "-", "number_of_runs", -10),
+			right_command = make_adjust_command("graph", "-", "number_of_runs", 10),
+			editable = true,
+		}
+	)
+	push(
+		"Visible Runs",
+		self.visible_runs or DEFAULT_VISIBLE_RUNS,
+		{
+			left_command = make_adjust_command("graph", "-", "visible_runs", -5),
+			right_command = make_adjust_command("graph", "-", "visible_runs", 5),
+			editable = true,
+		}
+	)
+	push(
+		"Width",
+		math.floor(tonumber(self.design_diagram.width) or 600),
+		{
+			left_command = make_adjust_command("graph", "-", "width", -40),
+			right_command = make_adjust_command("graph", "-", "width", 40),
+			editable = true,
+		}
+	)
+	push(
+		"Height",
+		math.floor(tonumber(self.design_diagram.height) or 560),
+		{
+			left_command = make_adjust_command("graph", "-", "height", -40),
+			right_command = make_adjust_command("graph", "-", "height", 40),
+			editable = true,
+		}
+	)
 	if type(legacy_import) == "table" then
 		push("Legacy Ver", legacy_import.source_version or "-")
 		push("Legacy Upg", legacy_import.upgraded_version or "-")
@@ -696,10 +1555,18 @@ end
 
 local function build_nodes_payload(self)
 	local nodes = {}
+	local selected_lookup = {}
+	for _, node_id in ipairs(get_selected_node_ids(self)) do
+		selected_lookup[node_id] = true
+	end
 	for _, node in ipairs(self.design_diagram.nodes or {}) do
 		local pos = self.editor_positions[node.id] or { x = 0, y = 0 }
 		local runtime_node = get_runtime_node(self, node.id)
-		local width, height = get_payload_dimensions(node.type)
+		local display_node_type = node.type
+		if type(node.data) == "table" and node.data.ap_functional == true then
+			display_node_type = "artificial_player"
+		end
+		local width, height = get_payload_dimensions(display_node_type)
 		local resources = node.initial_resources or 0
 		local register_value = node.register_value or 0
 		local enabled = node.enabled ~= false
@@ -713,9 +1580,9 @@ local function build_nodes_payload(self)
 		nodes[#nodes + 1] = {
 			id = node.id,
 			title = (node.data and node.data.legacy_caption) or node.id,
-			icon = get_node_icon(node.type),
-			shape = get_node_shape(node.type),
-			node_type = node.type,
+			icon = get_node_icon(display_node_type),
+			shape = get_node_shape(display_node_type),
+			node_type = display_node_type,
 			x = pos.x,
 			y = pos.y,
 			resources = resources,
@@ -724,7 +1591,7 @@ local function build_nodes_payload(self)
 			height = height,
 			value_text = get_node_value_text(node, runtime_node),
 			enabled = enabled,
-			selected = self.selected_node_id == node.id,
+			selected = selected_lookup[node.id] == true,
 			link_source = self.link_from_node_id == node.id,
 		}
 	end
@@ -748,7 +1615,7 @@ local function build_nodes_payload(self)
 			register = 0,
 			value_text = get_legacy_visual_value(visual_node),
 			enabled = true,
-			selected = false,
+			selected = selected_lookup[visual_node.id] == true,
 			link_source = false,
 			visual_only = true,
 			legacy_symbol = visual_node.symbol,
@@ -774,7 +1641,11 @@ local function build_chart_payload(self)
 		return payload
 	end
 
-	local focus_node_id = self.selected_node_id or self.runtime_state.node_order[1]
+	local selected_ids = get_selected_node_ids(self)
+	local focus_node_id = self.selected_node_id or selected_ids[1] or self.runtime_state.node_order[1]
+	if focus_node_id ~= nil and self.runtime_state.nodes[focus_node_id] == nil then
+		focus_node_id = self.runtime_state.node_order[1]
+	end
 	if focus_node_id == nil then
 		return payload
 	end
@@ -825,6 +1696,7 @@ local function build_edges_payload(self)
 				flow_mode = connection.flow_mode or types.FLOW_MODE.PUSH,
 				points = points,
 				label = connection.data and connection.data.legacy_label or connection.amount_expression,
+				selected = self.selected_connection_id == connection.id,
 			}
 		end
 	end
@@ -845,6 +1717,7 @@ local function build_edges_payload(self)
 				points = points,
 				label = connection.label,
 				visual_only = true,
+				selected = self.selected_connection_id == connection.id,
 			}
 		end
 	end
@@ -865,6 +1738,19 @@ local function build_accuracy_text(self)
 		return self.last_accuracy_text
 	end
 	return "Run batch to compute accuracy indicator."
+end
+
+local function build_diagram_library_payload(self)
+	local items = {}
+	for _, entry in ipairs(DIAGRAM_LIBRARY) do
+		items[#items + 1] = {
+			key = entry.key,
+			label = entry.label,
+			command = "load_diagram:" .. entry.key,
+			selected = self.current_diagram_key == entry.key,
+		}
+	end
+	return items
 end
 
 local function post_chunked_items(message_id, items, chunk_size)
@@ -896,10 +1782,46 @@ local function post_chunked_items(message_id, items, chunk_size)
 	end
 end
 
+local function post_inspector_payload(payload)
+	local fields = payload.fields or {}
+	local total = #fields
+	if total == 0 then
+		msg.post("#gui", MSG_EDITOR_RENDER_INSPECTOR, {
+			reset = true,
+			done = true,
+			title = payload.title or "Selection",
+			status_line = payload.status_line or "",
+			items = {},
+		})
+		return
+	end
+
+	local index = 1
+	while index <= total do
+		local chunk_end = math.min(index + INSPECTOR_CHUNK_SIZE - 1, total)
+		local chunk = {}
+		for item_index = index, chunk_end do
+			chunk[#chunk + 1] = fields[item_index]
+		end
+
+		msg.post("#gui", MSG_EDITOR_RENDER_INSPECTOR, {
+			reset = index == 1,
+			done = chunk_end == total,
+			title = payload.title or "Selection",
+			status_line = payload.status_line or "",
+			items = chunk,
+		})
+
+		index = chunk_end + 1
+	end
+end
+
 local function send_render(self)
 	if not self.render_dirty then
 		return
 	end
+
+	local inspector_payload = build_inspector_payload(self)
 
 	msg.post("#gui", MSG_EDITOR_RENDER_META, {
 		camera_x = self.camera_x,
@@ -907,10 +1829,14 @@ local function send_render(self)
 		camera_zoom = self.camera_zoom,
 		hud = compose_hud_text(self),
 		status = self.status_line or "",
-		inspector = build_inspector_payload(self),
 		active_tool = self.active_tool or "select",
 		autoplay = self.autoplay == true,
+		active_diagram_key = self.current_diagram_key,
+		number_of_runs = self.number_of_runs or DEFAULT_NUMBER_OF_RUNS,
+		visible_runs = self.visible_runs or DEFAULT_VISIBLE_RUNS,
 	})
+	post_inspector_payload(inspector_payload)
+	post_chunked_items(MSG_EDITOR_RENDER_LIBRARY, build_diagram_library_payload(self), LIBRARY_CHUNK_SIZE)
 
 	post_chunked_items(MSG_EDITOR_RENDER_NODES, build_nodes_payload(self), NODE_CHUNK_SIZE)
 	post_chunked_items(MSG_EDITOR_RENDER_EDGES, build_edges_payload(self), EDGE_CHUNK_SIZE)
@@ -1076,9 +2002,19 @@ local function build_autogen_accuracy_text(report)
 	)
 end
 
-local function run_batch_simulation(self)
-	local report, err = Batch.run(self.design_diagram, {
-		runs = 200,
+local function run_batch_simulation(self, number_of_runs, visible_runs)
+	local runs, visible = EditorActions.normalize_run_settings(
+		number_of_runs or self.number_of_runs or DEFAULT_NUMBER_OF_RUNS,
+		visible_runs or self.visible_runs or DEFAULT_VISIBLE_RUNS
+	)
+	self.number_of_runs = runs
+	self.visible_runs = visible
+	self.design_diagram.number_of_runs = runs
+	self.design_diagram.visible_runs = visible
+
+	local report, err = EditorActions.multiple_runs(self.design_diagram, {
+		runs = runs,
+		visible_runs = visible,
 		max_ticks = 300,
 		seed = self.seed,
 	})
@@ -1169,8 +2105,21 @@ local function run_batch_simulation(self)
 		sorted_ticks[#sorted_ticks + 1] = tonumber(run.ticks) or 0
 	end
 	table.sort(sorted_ticks)
+	local min_tick_value = sorted_ticks[1] or 0
+	local max_tick_value = sorted_ticks[#sorted_ticks] or 0
+	local median_tick_value = mean_ticks
+	if #sorted_ticks > 0 then
+		local middle_index = math.floor((#sorted_ticks + 1) * 0.5)
+		if #sorted_ticks % 2 == 0 then
+			local left_value = sorted_ticks[math.max(middle_index, 1)] or 0
+			local right_value = sorted_ticks[math.min(middle_index + 1, #sorted_ticks)] or left_value
+			median_tick_value = (left_value + right_value) * 0.5
+		else
+			median_tick_value = sorted_ticks[middle_index] or mean_ticks
+		end
+	end
 	local preview_points = {}
-	local preview_count = math.min(#sorted_ticks, 24)
+	local preview_count = math.min(#sorted_ticks, visible)
 	if preview_count >= 2 then
 		for preview_index = 1, preview_count do
 			local t = (preview_index - 1) / (preview_count - 1)
@@ -1180,10 +2129,13 @@ local function run_batch_simulation(self)
 	end
 	self.last_batch_chart_points = preview_points
 	self.last_accuracy_text = string.format(
-		"Most likely end: %s (%.1f%%).\nTick mean %.1f, 95%% CI [%.1f..%.1f].",
+		"Most likely end: %s (%.1f%%).\nMean %.1f | Median %.1f | Min %d | Max %d.\n95%% CI [%.1f..%.1f].",
 		tostring(top_reason),
 		top_share * 100,
 		mean_ticks,
+		median_tick_value,
+		math.floor(min_tick_value),
+		math.floor(max_tick_value),
 		ci_low,
 		ci_high
 	)
@@ -1191,13 +2143,13 @@ local function run_batch_simulation(self)
 	local sys_info = sys.get_sys_info()
 	local is_html5 = sys_info ~= nil and sys_info.system_name == "HTML5"
 	if is_html5 then
-		self.status_line = "Batch done in browser mode."
+		self.status_line = string.format("Multiple runs done in browser mode (%d runs).", runs)
 	else
 		local saved, save_err = save_batch_report(report)
 		if not saved then
-			self.status_line = "Batch done, save failed: " .. tostring(save_err)
+			self.status_line = "Multiple runs done, save failed: " .. tostring(save_err)
 		else
-			self.status_line = "Batch done and report saved: " .. BATCH_REPORT_PATH
+			self.status_line = "Multiple runs done and report saved: " .. BATCH_REPORT_PATH
 		end
 	end
 
@@ -1266,6 +2218,7 @@ local function load_autogenerated_case(self)
 		string.format("Auto-generated case %d/%d: %s", normalized_index, total, tostring(case.name or case.id)),
 		true
 	)
+	self.current_diagram_key = nil
 
 	self.autogen_case_index = normalized_index
 	self.last_batch_distribution = build_generated_case_distribution(case.diagram)
@@ -1357,6 +2310,140 @@ local function save_editor_snapshot(self)
 	self.render_dirty = true
 end
 
+local function export_selection_snapshot(self)
+	local selected_ids = get_selected_node_ids(self)
+	if #selected_ids == 0 then
+		self.status_line = "Export selection failed: no selected nodes."
+		self.render_dirty = true
+		return
+	end
+
+	local selection = EditorActions.export_selection(self.design_diagram, self.editor_positions, selected_ids)
+	local ok, err = Io.encode_diagram_file(SELECTION_EXPORT_PATH, selection, true)
+	if not ok then
+		self.status_line = "Export selection failed: " .. tostring(err)
+	else
+		self.status_line = "Selection exported: " .. SELECTION_EXPORT_PATH
+	end
+	self.render_dirty = true
+end
+
+local function save_diagram_svg(self)
+	local svg_text = EditorActions.build_svg(self.design_diagram, self.editor_positions, {
+		width = self.design_diagram.width,
+		height = self.design_diagram.height,
+	})
+	local ok, err = write_text_file(SVG_EXPORT_PATH, svg_text)
+	if not ok then
+		self.status_line = "SVG export failed: " .. tostring(err)
+	else
+		self.status_line = "SVG exported: " .. SVG_EXPORT_PATH
+	end
+	self.render_dirty = true
+end
+
+local function run_quick_simulation(self)
+	clear_analytics_state(self)
+	local report, err = EditorActions.quick_run(self.design_diagram, {
+		seed = self.seed,
+		max_ticks = 300,
+	})
+	if not report then
+		self.status_line = "Quick run failed: " .. tostring(err)
+		self.render_dirty = true
+		return
+	end
+
+	self.runtime_state = report.state
+	self.autoplay = false
+	self.autoplay_accum = 0
+	if report.ended then
+		self.status_line = string.format(
+			"Quick run ended at tick %d (%s).",
+			math.floor(tonumber(report.ticks) or 0),
+			tostring(report.end_reason or "ended")
+		)
+	else
+		self.status_line = string.format(
+			"Quick run reached tick %d without end condition.",
+			math.floor(tonumber(report.ticks) or 0)
+		)
+	end
+	self.render_dirty = true
+end
+
+local function select_all_nodes(self)
+	local selected_ids = EditorActions.select_all(self.design_diagram)
+	if #selected_ids == 0 then
+		self.status_line = "Select all: no nodes in diagram."
+	else
+		set_selected_nodes(self, selected_ids, selected_ids[1])
+		self.status_line = string.format("Selected %d nodes.", #selected_ids)
+	end
+	self.render_dirty = true
+end
+
+local function copy_selected_nodes(self)
+	local selected_ids = get_selected_node_ids(self)
+	self.clipboard = EditorActions.copy_selection(self.design_diagram, self.editor_positions, selected_ids)
+	self.paste_shift = 0
+	if self.clipboard == nil then
+		self.status_line = "Copy failed: no selected nodes."
+	else
+		self.status_line = string.format("Copied %d nodes.", #(self.clipboard.selected_ids or {}))
+	end
+	self.render_dirty = true
+end
+
+local function paste_selected_nodes(self)
+	if self.clipboard == nil then
+		self.status_line = "Paste failed: clipboard is empty."
+		self.render_dirty = true
+		return
+	end
+
+	self.paste_shift = (self.paste_shift or 0) + 20
+	local diagram, positions, pasted_ids = EditorActions.paste_selection(
+		self.design_diagram,
+		self.editor_positions,
+		self.clipboard,
+		{
+			offset_x = self.paste_shift,
+			offset_y = self.paste_shift,
+		}
+	)
+	self.design_diagram = diagram
+	self.editor_positions = positions
+	set_selected_nodes(self, pasted_ids, pasted_ids[1])
+	setup_serials(self)
+	restart_runtime(self)
+	push_history_state(self)
+	self.status_line = string.format("Pasted %d nodes.", #pasted_ids)
+	self.render_dirty = true
+end
+
+local function undo_editor_change(self)
+	local snapshot = nil
+	self.history, snapshot = EditorActions.undo_history(self.history or EditorActions.new_history(capture_history_snapshot(self), HISTORY_LIMIT))
+	if snapshot == nil then
+		self.status_line = "Undo unavailable."
+		self.render_dirty = true
+		return
+	end
+	restore_history_snapshot(self, snapshot, "Undo.")
+end
+
+local function redo_editor_change(self)
+	local snapshot = nil
+	self.history, snapshot = EditorActions.redo_history(self.history or EditorActions.new_history(capture_history_snapshot(self), HISTORY_LIMIT))
+	if snapshot == nil then
+		self.status_line = "Redo unavailable."
+		self.render_dirty = true
+		return
+	end
+	restore_history_snapshot(self, snapshot, "Redo.")
+end
+
 local function fit_camera_to_diagram(self)
 	local min_x = nil
 	local max_x = nil
@@ -1379,7 +2466,11 @@ local function fit_camera_to_diagram(self)
 	for _, node in ipairs(self.design_diagram.nodes or {}) do
 		local pos = self.editor_positions[node.id]
 		if pos ~= nil then
-			local width, height = get_payload_dimensions(node.type)
+			local node_type = node.type
+			if type(node.data) == "table" and node.data.ap_functional == true then
+				node_type = "artificial_player"
+			end
+			local width, height = get_payload_dimensions(node_type)
 			include_bounds(pos.x, pos.y, width, height)
 		end
 	end
@@ -1410,15 +2501,53 @@ local function fit_camera_to_diagram(self)
 	self.camera_zoom = clamp(math.min(canvas_w / world_w, canvas_h / world_h), 0.35, 1.1)
 end
 
+restore_history_snapshot = function(self, snapshot, status_line)
+	if snapshot == nil then
+		return false
+	end
+
+	self.design_diagram = copy_table(snapshot.diagram or {})
+	self.editor_positions = copy_table(snapshot.positions or {})
+	apply_auto_positions(self.design_diagram, self.editor_positions)
+	sync_run_settings(self)
+	self.dragging_node_id = nil
+	self.drag_node_moved = false
+	self.panning = false
+	self.autoplay = false
+	self.autoplay_accum = 0
+	self.link_from_node_id = nil
+	self.selected_connection_id = nil
+
+	if type(snapshot.camera) == "table" then
+		self.camera_x = tonumber(snapshot.camera.x) or 0
+		self.camera_y = tonumber(snapshot.camera.y) or 0
+		self.camera_zoom = clamp(tonumber(snapshot.camera.zoom) or 0.9, 0.2, 4.0)
+	else
+		fit_camera_to_diagram(self)
+	end
+
+	setup_serials(self)
+	restart_runtime(self)
+	set_selected_nodes(self, snapshot.selected_ids or {}, snapshot.primary_selected_id)
+	self.selected_connection_id = snapshot.selected_connection_id
+	self.status_line = status_line or "History restored."
+	self.render_dirty = true
+	return true
+end
+
 function apply_design_diagram(self, diagram, status_line, overwrite_initial)
 	self.design_diagram = copy_table(diagram)
 	self.editor_positions = extract_editor_positions(self.design_diagram)
 	apply_auto_positions(self.design_diagram, self.editor_positions)
-	self.selected_node_id = nil
+	set_selected_nodes(self, {}, nil)
+	self.selected_connection_id = nil
 	self.dragging_node_id = nil
+	self.drag_node_moved = false
 	self.panning = false
 	self.autoplay = false
 	self.autoplay_accum = 0
+	self.link_from_node_id = nil
+	sync_run_settings(self)
 	fit_camera_to_diagram(self)
 	setup_serials(self)
 	restart_runtime(self)
@@ -1428,6 +2557,7 @@ function apply_design_diagram(self, diagram, status_line, overwrite_initial)
 	end
 
 	self.status_line = status_line
+	reset_history(self)
 	self.render_dirty = true
 end
 
@@ -1451,7 +2581,22 @@ local function load_design_diagram(self, path)
 	end
 
 	apply_design_diagram(self, diagram, status_line, true)
+	self.current_diagram_key = detect_library_key_from_path(path)
 	return true
+end
+
+local function load_named_diagram(self, diagram_key)
+	local entry = get_library_entry(diagram_key)
+	if entry == nil then
+		self.status_line = "Unknown diagram: " .. tostring(diagram_key)
+		self.render_dirty = true
+		return false
+	end
+	local loaded = load_design_diagram(self, entry.path)
+	if loaded then
+		self.current_diagram_key = entry.key
+	end
+	return loaded
 end
 
 local function reset_design_diagram(self)
@@ -1481,34 +2626,72 @@ local function make_unique_connection_id(self, prefix)
 	end
 end
 
-local function add_connection(self, from_id, to_id)
+local function add_connection(self, from_id, to_id, connection_type, options)
 	if from_id == nil or to_id == nil or from_id == to_id then
-		return
+		return false
 	end
 
-	for _, connection in ipairs(self.design_diagram.connections or {}) do
-		if connection.type == types.CONNECTION.RESOURCE and connection.from == from_id and connection.to == to_id then
-			return
-		end
+	local added = EditorActions.append_connection(
+		self.design_diagram,
+		from_id,
+		to_id,
+		connection_type or types.CONNECTION.RESOURCE,
+		options
+	)
+	setup_serials(self)
+	return added
+end
+
+local function add_visual_node(self, symbol, world_x, world_y)
+	local visual_id = make_unique_node_id(self, string.lower(symbol or "visual"))
+	local visual_node = {
+		id = visual_id,
+		symbol = symbol,
+		caption = visual_id,
+		x = world_x or self.camera_x,
+		y = world_y or self.camera_y,
+		width = 132,
+		height = 72,
+		color = "Black",
+	}
+
+	if symbol == "TextLabel" then
+		visual_node.caption = "Text Label"
+		visual_node.width = 128
+		visual_node.height = 28
+	elseif symbol == "GroupBox" then
+		visual_node.caption = "Group"
+		visual_node.width = 220
+		visual_node.height = 120
+		set_visual_anchor_position(visual_node, world_x or self.camera_x, world_y or self.camera_y)
+	elseif symbol == "Chart" then
+		visual_node.caption = "Chart"
+		visual_node.width = 220
+		visual_node.height = 120
+		visual_node.scale_x = 1
+		visual_node.scale_y = 1
+		set_visual_anchor_position(visual_node, world_x or self.camera_x, world_y or self.camera_y)
+	elseif symbol == "ArtificialPlayer" then
+		visual_node.caption = "Artificial Player"
+		visual_node.width = 90
+		visual_node.height = 56
+		visual_node.actions_per_turn = 1
 	end
 
-	local connection_id = make_unique_connection_id(self, "connection")
-	table.insert(self.design_diagram.connections, {
-		id = connection_id,
-		from = from_id,
-		to = to_id,
-		type = types.CONNECTION.RESOURCE,
-		flow_mode = types.FLOW_MODE.PUSH,
-		amount = 1,
-	})
+	self.design_diagram.legacy_visual_nodes = self.design_diagram.legacy_visual_nodes or {}
+	table.insert(self.design_diagram.legacy_visual_nodes, visual_node)
+	select_single_node(self, visual_id)
+	push_history_state(self)
+	self.status_line = "Added visual node: " .. visual_id
+	self.render_dirty = true
 end
 
 local function add_node(self, node_type, world_x, world_y)
-	local prefix = node_type
+	local prefix = node_type == "artificial_player" and "ap" or node_type
 	local node_id = make_unique_node_id(self, prefix)
 	local node = {
 		id = node_id,
-		type = node_type,
+		type = node_type == "artificial_player" and types.NODE.REGISTER or node_type,
 		trigger_mode = types.TRIGGER_MODE.AUTOMATIC,
 		initial_resources = 0,
 		rate = 1,
@@ -1522,12 +2705,24 @@ local function add_node(self, node_type, world_x, world_y)
 		node.data.finite_source = true
 	elseif node_type == types.NODE.DRAIN then
 		node.trigger_mode = types.TRIGGER_MODE.PASSIVE
+	elseif node_type == types.NODE.CONVERTER or node_type == types.NODE.TRADER then
+		node.trigger_mode = types.TRIGGER_MODE.PASSIVE
 	elseif node_type == types.NODE.REGISTER then
 		node.trigger_mode = types.TRIGGER_MODE.PASSIVE
 	elseif node_type == types.NODE.GATE then
 		node.gate_mode = types.GATE_MODE.ALL
 	elseif node_type == types.NODE.QUEUE or node_type == types.NODE.DELAY then
 		node.delay_ticks = 1
+	elseif node_type == types.NODE.END_CONDITION then
+		node.trigger_mode = types.TRIGGER_MODE.PASSIVE
+		node.enabled = false
+	elseif node_type == "artificial_player" then
+		node.trigger_mode = types.TRIGGER_MODE.AUTOMATIC
+		node.actions_per_turn = 1
+		node.script = ""
+		node.data.legacy_caption = "Artificial Player"
+		node.data.ap_script_preset = "blank"
+		node.data.ap_functional = true
 	end
 
 	table.insert(self.design_diagram.nodes, node)
@@ -1536,45 +2731,505 @@ local function add_node(self, node_type, world_x, world_y)
 		y = world_y or self.camera_y,
 	}
 
-	if self.selected_node_id ~= nil and node_id_exists(self.design_diagram, self.selected_node_id) then
+	if self.selected_node_id ~= nil and get_design_node(self.design_diagram, self.selected_node_id) ~= nil then
 		add_connection(self, self.selected_node_id, node_id)
 	end
 
-	self.selected_node_id = node_id
+	select_single_node(self, node_id)
 	restart_runtime(self)
+	push_history_state(self)
 	self.status_line = "Added node: " .. node_id
 	self.render_dirty = true
 end
 
 local function delete_selected_node(self)
-	if self.selected_node_id == nil then
+	if self.selected_connection_id ~= nil then
+		local removed = false
+		for index = #(self.design_diagram.connections or {}), 1, -1 do
+			if self.design_diagram.connections[index].id == self.selected_connection_id then
+				table.remove(self.design_diagram.connections, index)
+				removed = true
+				break
+			end
+		end
+		if not removed then
+			for index = #(self.design_diagram.legacy_visual_connections or {}), 1, -1 do
+				if self.design_diagram.legacy_visual_connections[index].id == self.selected_connection_id then
+					table.remove(self.design_diagram.legacy_visual_connections, index)
+					removed = true
+					break
+				end
+			end
+		end
+		if removed then
+			self.selected_connection_id = nil
+			restart_runtime(self)
+			push_history_state(self)
+			self.status_line = "Deleted connection."
+		else
+			self.status_line = "Selected connection not found."
+		end
+		self.render_dirty = true
+		return
+	end
+
+	local selected_ids = get_selected_node_ids(self)
+	if #selected_ids == 0 then
 		self.status_line = "No selected node."
 		self.render_dirty = true
 		return
 	end
 
-	local index = find_node_index(self.design_diagram, self.selected_node_id)
-	if index == nil then
-		self.selected_node_id = nil
-		self.render_dirty = true
-		return
+	for _, node_id in ipairs(selected_ids) do
+		local index = find_node_index(self.design_diagram, node_id)
+		if index ~= nil then
+			table.remove(self.design_diagram.nodes, index)
+			remove_connections_for_node(self.design_diagram, node_id)
+			self.editor_positions[node_id] = nil
+		else
+			local visual_index = find_visual_node_index(self.design_diagram, node_id)
+			if visual_index ~= nil then
+				table.remove(self.design_diagram.legacy_visual_nodes, visual_index)
+				remove_connections_for_node(self.design_diagram, node_id)
+			end
+		end
 	end
-
-	table.remove(self.design_diagram.nodes, index)
-	remove_connections_for_node(self.design_diagram, self.selected_node_id)
-	self.editor_positions[self.selected_node_id] = nil
-	self.status_line = "Deleted node."
-	self.selected_node_id = nil
+	set_selected_nodes(self, {}, nil)
 	restart_runtime(self)
+	push_history_state(self)
+	self.status_line = string.format("Deleted %d node(s).", #selected_ids)
 	self.render_dirty = true
 end
 
+local GRAPH_TIME_MODES = { "asynchronous", "synchronous", "turn_based" }
+local DISTRIBUTION_MODES = { "fixed speed", "instantaneous" }
+local DICE_OPTIONS = { "D4", "D6", "D8", "D10", "D12", "D20" }
+local ACTIVATION_OPTIONS = { "passive", "interactive", "automatic", "onStart" }
+local PULL_MODE_OPTIONS = { "pull_any", "pull_all", "push_any", "push_all" }
+local GATE_TYPE_OPTIONS = { "deterministic", "dice", "skill", "multiplayer", "strategy" }
+local DELAY_TYPE_OPTIONS = { "delay", "queue" }
+local RESOURCE_COLOR_OPTIONS = { "Black", "White", "Red", "Blue", "Green", "Yellow", "Purple", "Orange" }
+local CONNECTION_ACTION_OPTIONS = {
+	types.STATE_ACTION.SET_ENABLED,
+	types.STATE_ACTION.TOGGLE_ENABLED,
+	types.STATE_ACTION.SET_TRIGGER_MODE,
+	types.STATE_ACTION.SET_REGISTER,
+	types.STATE_ACTION.SET_VARIABLE,
+	types.STATE_ACTION.SCALE_VARIABLE,
+	types.STATE_ACTION.SET_RATE,
+	types.STATE_ACTION.SET_CAPACITY,
+	types.STATE_ACTION.ADD_RESOURCE,
+}
+local CONNECTION_FIELD_OPTIONS = {
+	types.STATE_FIELD.RESOURCES,
+	types.STATE_FIELD.REGISTER,
+	types.STATE_FIELD.INCOMING,
+	types.STATE_FIELD.OUTGOING,
+	types.STATE_FIELD.TICK,
+}
+local CONNECTION_COMPARATOR_OPTIONS = {
+	types.COMPARATOR.GREATER,
+	types.COMPARATOR.GREATER_OR_EQUAL,
+	types.COMPARATOR.LESS,
+	types.COMPARATOR.LESS_OR_EQUAL,
+	types.COMPARATOR.EQUAL,
+	types.COMPARATOR.NOT_EQUAL,
+}
+local CONNECTION_REGISTER_OP_OPTIONS = { "set", "add", "mul" }
+local CONNECTION_TRIGGER_OPTIONS = {
+	types.TRIGGER_MODE.PASSIVE,
+	types.TRIGGER_MODE.INTERACTIVE,
+	types.TRIGGER_MODE.AUTOMATIC,
+	types.TRIGGER_MODE.ENABLING,
+}
+local FLOW_MODE_OPTIONS = { types.FLOW_MODE.PUSH, types.FLOW_MODE.PULL }
+
+local function split_command(command)
+	local parts = {}
+	for part in string.gmatch(command or "", "([^:]+)") do
+		parts[#parts + 1] = part
+	end
+	return parts
+end
+
+local function clamp_number(value, min_value, max_value)
+	value = tonumber(value) or min_value
+	if min_value ~= nil then
+		value = math.max(value, min_value)
+	end
+	if max_value ~= nil then
+		value = math.min(value, max_value)
+	end
+	return value
+end
+
+local function apply_graph_cycle(self, key, direction)
+	if key == "time_mode" then
+		local next_mode = cycle_value(normalize_graph_time_mode(self.design_diagram), GRAPH_TIME_MODES, direction)
+		self.design_diagram.time_mode = next_mode
+		if next_mode == "turn_based" then
+			self.design_diagram.play_mode = types.PLAY_MODE.INTERACTIVE
+		else
+			self.design_diagram.play_mode = types.PLAY_MODE.HEADLESS
+		end
+		return true, "Time mode: " .. next_mode
+	end
+	if key == "distribution_mode" then
+		local next_mode = cycle_value(self.design_diagram.distribution_mode or DISTRIBUTION_MODES[1], DISTRIBUTION_MODES, direction)
+		self.design_diagram.distribution_mode = next_mode
+		return true, "Distribution: " .. next_mode
+	end
+	if key == "dice" then
+		local next_value = cycle_value(self.design_diagram.dice or DICE_OPTIONS[2], DICE_OPTIONS, direction)
+		self.design_diagram.dice = next_value
+		return true, "Dice: " .. next_value
+	end
+	return false
+end
+
+local function apply_graph_adjust(self, key, delta)
+	if key == "interval" then
+		self.design_diagram.interval = clamp_number((tonumber(self.design_diagram.interval) or 1) + delta, 0.1, 20)
+		return true, string.format("Interval %.1f", tonumber(self.design_diagram.interval) or 1)
+	end
+	if key == "width" then
+		self.design_diagram.width = math.floor(clamp_number((tonumber(self.design_diagram.width) or 600) + delta, 160, 2400))
+		fit_camera_to_diagram(self)
+		return true, "Width " .. tostring(self.design_diagram.width)
+	end
+	if key == "height" then
+		self.design_diagram.height = math.floor(clamp_number((tonumber(self.design_diagram.height) or 560) + delta, 160, 2400))
+		fit_camera_to_diagram(self)
+		return true, "Height " .. tostring(self.design_diagram.height)
+	end
+	if key == "number_of_runs" then
+		local runs, visible = EditorActions.normalize_run_settings((self.number_of_runs or DEFAULT_NUMBER_OF_RUNS) + delta, self.visible_runs or DEFAULT_VISIBLE_RUNS)
+		self.number_of_runs = runs
+		self.visible_runs = visible
+		self.design_diagram.number_of_runs = runs
+		self.design_diagram.visible_runs = visible
+		return true, "Runs " .. tostring(runs)
+	end
+	if key == "visible_runs" then
+		local runs, visible = EditorActions.normalize_run_settings(self.number_of_runs or DEFAULT_NUMBER_OF_RUNS, (self.visible_runs or DEFAULT_VISIBLE_RUNS) + delta)
+		self.number_of_runs = runs
+		self.visible_runs = visible
+		self.design_diagram.number_of_runs = runs
+		self.design_diagram.visible_runs = visible
+		return true, "Visible runs " .. tostring(visible)
+	end
+	return false
+end
+
+local function apply_graph_toggle(self, key)
+	if key == "color_coding" then
+		self.design_diagram.color_coding = not (self.design_diagram.color_coding == true)
+		return true, "Color coding: " .. (self.design_diagram.color_coding and "on" or "off")
+	end
+	return false
+end
+
+local function apply_node_cycle(node, key, direction)
+	node.data = node.data or {}
+	if key == "trigger_mode" then
+		local current_value = node.data.legacy_activation_mode or node.trigger_mode or ACTIVATION_OPTIONS[1]
+		local next_value = cycle_value(current_value, ACTIVATION_OPTIONS, direction)
+		node.data.legacy_activation_mode = next_value
+		if next_value == "passive" then
+			node.trigger_mode = types.TRIGGER_MODE.PASSIVE
+		elseif next_value == "interactive" then
+			node.trigger_mode = types.TRIGGER_MODE.INTERACTIVE
+		elseif next_value == "onStart" then
+			node.trigger_mode = types.TRIGGER_MODE.AUTOMATIC
+		else
+			node.trigger_mode = types.TRIGGER_MODE.AUTOMATIC
+		end
+		return true, "Activation: " .. next_value
+	end
+	if key == "pull_mode" then
+		node.data.legacy_pull_mode = cycle_value(node.data.legacy_pull_mode or PULL_MODE_OPTIONS[1], PULL_MODE_OPTIONS, direction)
+		return true, "Pull mode: " .. tostring(node.data.legacy_pull_mode)
+	end
+	if key == "gate_type" then
+		node.data.legacy_gate_type = cycle_value(node.data.legacy_gate_type or GATE_TYPE_OPTIONS[1], GATE_TYPE_OPTIONS, direction)
+		if node.data.legacy_gate_type == "deterministic" then
+			node.gate_mode = types.GATE_MODE.ROUND_ROBIN
+		else
+			node.gate_mode = types.GATE_MODE.RANDOM
+		end
+		return true, "Gate type: " .. tostring(node.data.legacy_gate_type)
+	end
+	if key == "delay_type" then
+		local next_type = cycle_value(node.data.legacy_delay_type or DELAY_TYPE_OPTIONS[1], DELAY_TYPE_OPTIONS, direction)
+		node.data.legacy_delay_type = next_type
+		node.type = next_type == "queue" and types.NODE.QUEUE or types.NODE.DELAY
+		return true, "Delay type: " .. next_type
+	end
+	if key == "resource_color" then
+		node.data.legacy_resource_color = cycle_value(node.data.legacy_resource_color or RESOURCE_COLOR_OPTIONS[1], RESOURCE_COLOR_OPTIONS, direction)
+		return true, "Resource color: " .. tostring(node.data.legacy_resource_color)
+	end
+	if key == "script" then
+		return set_ap_script_preset(node, direction)
+	end
+	return false
+end
+
+local function apply_node_adjust(node, key, delta)
+	node.data = node.data or {}
+	if key == "rate" then
+		node.rate = math.floor(clamp_number((tonumber(node.rate) or 1) + delta, 1, 999))
+		return true, "Rate: " .. tostring(node.rate)
+	end
+	if key == "capacity" then
+		node.capacity = math.floor((tonumber(node.capacity) or -1) + delta)
+		if node.capacity < -1 then
+			node.capacity = -1
+		end
+		return true, "Capacity: " .. tostring(node.capacity)
+	end
+	if key == "initial_resources" then
+		node.initial_resources = math.floor(clamp_number((tonumber(node.initial_resources) or 0) + delta, 0, 9999))
+		return true, "Resources: " .. tostring(node.initial_resources)
+	end
+	if key == "register_value" then
+		node.register_value = math.floor((tonumber(node.register_value) or 0) + delta)
+		return true, "Register: " .. tostring(node.register_value)
+	end
+	if key == "legacy_actions" then
+		node.data.legacy_actions = math.floor(clamp_number((tonumber(node.data.legacy_actions) or 0) + delta, 0, 999))
+		return true, "Actions: " .. tostring(node.data.legacy_actions)
+	end
+	if key == "actions_per_turn" then
+		node.actions_per_turn = math.floor(clamp_number((tonumber(node.actions_per_turn) or 1) + delta, 1, 999))
+		return true, "Actions/turn: " .. tostring(node.actions_per_turn)
+	end
+	if key == "display_capacity" then
+		node.data.legacy_display_capacity = math.floor(clamp_number((tonumber(node.data.legacy_display_capacity) or 0) + delta, 0, 9999))
+		return true, "Display cap: " .. tostring(node.data.legacy_display_capacity)
+	end
+	if key == "legacy_min" then
+		node.data.legacy_min = math.floor((tonumber(node.data.legacy_min) or 0) + delta)
+		return true, "Min: " .. tostring(node.data.legacy_min)
+	end
+	if key == "legacy_max" then
+		node.data.legacy_max = math.floor((tonumber(node.data.legacy_max) or 0) + delta)
+		return true, "Max: " .. tostring(node.data.legacy_max)
+	end
+	if key == "legacy_step" then
+		node.data.legacy_step = math.floor(clamp_number((tonumber(node.data.legacy_step) or 1) + delta, 1, 99))
+		return true, "Step: " .. tostring(node.data.legacy_step)
+	end
+	return false
+end
+
+local function apply_visual_cycle(visual_node, key, direction)
+	if key == "gate_type" then
+		visual_node.gate_type = cycle_value(visual_node.gate_type or GATE_TYPE_OPTIONS[1], GATE_TYPE_OPTIONS, direction)
+		return true, "Gate type: " .. tostring(visual_node.gate_type)
+	end
+	if key == "delay_type" then
+		visual_node.delay_type = cycle_value(visual_node.delay_type or DELAY_TYPE_OPTIONS[1], DELAY_TYPE_OPTIONS, direction)
+		return true, "Delay type: " .. tostring(visual_node.delay_type)
+	end
+	return false
+end
+
+local function apply_visual_adjust(visual_node, key, delta)
+	if key == "width" then
+		visual_node.width = math.floor(clamp_number((tonumber(visual_node.width) or 120) + delta, 48, 2400))
+		return true, "Width: " .. tostring(visual_node.width)
+	end
+	if key == "height" then
+		visual_node.height = math.floor(clamp_number((tonumber(visual_node.height) or 60) + delta, 28, 1800))
+		return true, "Height: " .. tostring(visual_node.height)
+	end
+	if key == "actions_per_turn" then
+		visual_node.actions_per_turn = math.floor(clamp_number((tonumber(visual_node.actions_per_turn) or 1) + delta, 1, 999))
+		return true, "Actions/turn: " .. tostring(visual_node.actions_per_turn)
+	end
+	if key == "scale_x" then
+		visual_node.scale_x = clamp_number((tonumber(visual_node.scale_x) or 1) + delta, 0.5, 20)
+		return true, string.format("Scale X %.1f", tonumber(visual_node.scale_x) or 1)
+	end
+	if key == "scale_y" then
+		visual_node.scale_y = clamp_number((tonumber(visual_node.scale_y) or 1) + delta, 0.5, 20)
+		return true, string.format("Scale Y %.1f", tonumber(visual_node.scale_y) or 1)
+	end
+	return false
+end
+
+local function apply_connection_cycle(connection, key, direction)
+	if connection.type == types.CONNECTION.STATE then
+		if key == "action" then
+			connection.action = cycle_value(connection.action or CONNECTION_ACTION_OPTIONS[1], CONNECTION_ACTION_OPTIONS, direction)
+			return true, "Action: " .. tostring(connection.action)
+		end
+		if key == "source_field" then
+			connection.source_field = cycle_value(connection.source_field or CONNECTION_FIELD_OPTIONS[1], CONNECTION_FIELD_OPTIONS, direction)
+			return true, "Field: " .. tostring(connection.source_field)
+		end
+		if key == "comparator" then
+			connection.comparator = cycle_value(connection.comparator or CONNECTION_COMPARATOR_OPTIONS[1], CONNECTION_COMPARATOR_OPTIONS, direction)
+			return true, "Comparator: " .. tostring(connection.comparator)
+		end
+		if key == "register_op" then
+			connection.register_op = cycle_value(connection.register_op or CONNECTION_REGISTER_OP_OPTIONS[1], CONNECTION_REGISTER_OP_OPTIONS, direction)
+			return true, "Mode op: " .. tostring(connection.register_op)
+		end
+		if key == "target_trigger_mode" then
+			connection.target_trigger_mode = cycle_value(connection.target_trigger_mode or CONNECTION_TRIGGER_OPTIONS[1], CONNECTION_TRIGGER_OPTIONS, direction)
+			return true, "Target mode: " .. tostring(connection.target_trigger_mode)
+		end
+	elseif key == "flow_mode" then
+		connection.flow_mode = cycle_value(connection.flow_mode or FLOW_MODE_OPTIONS[1], FLOW_MODE_OPTIONS, direction)
+		return true, "Flow: " .. tostring(connection.flow_mode)
+	end
+	return false
+end
+
+local function apply_connection_adjust(connection, key, delta)
+	if key == "amount" then
+		connection.amount = math.floor(clamp_number((tonumber(connection.amount) or 1) + delta, 1, 9999))
+		return true, "Amount: " .. tostring(connection.amount)
+	end
+	if key == "value" then
+		connection.value = (tonumber(connection.value) or 0) + delta
+		return true, "Value: " .. tostring(connection.value)
+	end
+	if key == "scale" then
+		connection.scale = clamp_number((tonumber(connection.scale) or 1) + delta, 0, 999)
+		return true, string.format("Scale %.2f", tonumber(connection.scale) or 1)
+	end
+	return false
+end
+
+local function apply_connection_toggle(connection, key)
+	if key == "use_delta" then
+		connection.use_delta = not (connection.use_delta == true)
+		return true, "Use delta: " .. (connection.use_delta and "on" or "off")
+	end
+	if key == "target_enabled" then
+		connection.target_enabled = connection.target_enabled == false
+		return true, "Enabled: " .. (connection.target_enabled and "on" or "off")
+	end
+	return false
+end
+
+local function mutate_property(self, operation, scope, target_id, key, raw_value)
+	local diagram_changed = false
+	local status_line = nil
+
+	if scope == "graph" then
+		if operation == "cycle" then
+			diagram_changed, status_line = apply_graph_cycle(self, key, tonumber(raw_value) or 1)
+		elseif operation == "adjust" then
+			diagram_changed, status_line = apply_graph_adjust(self, key, tonumber(raw_value) or 0)
+		elseif operation == "toggle" then
+			diagram_changed, status_line = apply_graph_toggle(self, key)
+		end
+	elseif scope == "node" then
+		local node = get_design_node(self.design_diagram, target_id)
+		if node ~= nil then
+			if operation == "cycle" then
+				diagram_changed, status_line = apply_node_cycle(node, key, tonumber(raw_value) or 1)
+			elseif operation == "adjust" then
+				diagram_changed, status_line = apply_node_adjust(node, key, tonumber(raw_value) or 0)
+			end
+		end
+	elseif scope == "visual" then
+		local visual_node = get_visual_node(self.design_diagram, target_id)
+		if visual_node ~= nil then
+			if operation == "cycle" then
+				diagram_changed, status_line = apply_visual_cycle(visual_node, key, tonumber(raw_value) or 1)
+			elseif operation == "adjust" then
+				diagram_changed, status_line = apply_visual_adjust(visual_node, key, tonumber(raw_value) or 0)
+			end
+		end
+	elseif scope == "connection" then
+		local connection = get_design_connection(self.design_diagram, target_id)
+		if connection ~= nil then
+			if operation == "cycle" then
+				diagram_changed, status_line = apply_connection_cycle(connection, key, tonumber(raw_value) or 1)
+			elseif operation == "adjust" then
+				diagram_changed, status_line = apply_connection_adjust(connection, key, tonumber(raw_value) or 0)
+			elseif operation == "toggle" then
+				diagram_changed, status_line = apply_connection_toggle(connection, key)
+			end
+		end
+	end
+
+	if not diagram_changed then
+		return false
+	end
+
+	sync_run_settings(self)
+	restart_runtime(self)
+	push_history_state(self)
+	self.status_line = status_line or "Property updated."
+	self.render_dirty = true
+	return true
+end
+
 local function handle_command(self, command)
+	local parts = split_command(command)
+	if parts[1] == "prop_cycle" and #parts >= 5 then
+		if mutate_property(self, "cycle", parts[2], parts[3] ~= "-" and parts[3] or nil, parts[4], parts[5]) then
+			return
+		end
+	end
+	if parts[1] == "prop_adjust" and #parts >= 5 then
+		if mutate_property(self, "adjust", parts[2], parts[3] ~= "-" and parts[3] or nil, parts[4], parts[5]) then
+			return
+		end
+	end
+	if parts[1] == "prop_toggle" and #parts >= 4 then
+		if mutate_property(self, "toggle", parts[2], parts[3] ~= "-" and parts[3] or nil, parts[4], nil) then
+			return
+		end
+	end
+
 	local tool_key = string.match(command or "", "^tool:(.+)$")
 	if tool_key ~= nil then
 		self.active_tool = tool_key
 		self.link_from_node_id = nil
 		self.status_line = "Tool selected: " .. tool_key
+		self.render_dirty = true
+		return
+	end
+
+	local diagram_key = string.match(command or "", "^load_diagram:(.+)$")
+	if diagram_key ~= nil then
+		load_named_diagram(self, diagram_key)
+		return
+	end
+
+	local runs_delta = string.match(command or "", "^runs_delta:([+-]?%d+)$")
+	if runs_delta ~= nil then
+		local runs, visible = EditorActions.normalize_run_settings(
+			(self.number_of_runs or DEFAULT_NUMBER_OF_RUNS) + tonumber(runs_delta),
+			self.visible_runs or DEFAULT_VISIBLE_RUNS
+		)
+		self.number_of_runs = runs
+		self.visible_runs = visible
+		self.design_diagram.number_of_runs = runs
+		self.design_diagram.visible_runs = visible
+		self.status_line = string.format("Runs set to %d.", runs)
+		self.render_dirty = true
+		return
+	end
+
+	local visible_delta = string.match(command or "", "^visible_runs_delta:([+-]?%d+)$")
+	if visible_delta ~= nil then
+		local runs, visible = EditorActions.normalize_run_settings(
+			self.number_of_runs or DEFAULT_NUMBER_OF_RUNS,
+			(self.visible_runs or DEFAULT_VISIBLE_RUNS) + tonumber(visible_delta)
+		)
+		self.number_of_runs = runs
+		self.visible_runs = visible
+		self.design_diagram.number_of_runs = runs
+		self.design_diagram.visible_runs = visible
+		self.status_line = string.format("Visible runs set to %d.", visible)
 		self.render_dirty = true
 		return
 	end
@@ -1592,7 +3247,17 @@ local function handle_command(self, command)
 	end
 
 	if command == "batch" then
-		run_batch_simulation(self)
+		run_batch_simulation(self, self.number_of_runs, self.visible_runs)
+		return
+	end
+
+	if command == "quick_run" then
+		run_quick_simulation(self)
+		return
+	end
+
+	if command == "multiple_runs" then
+		run_batch_simulation(self, self.number_of_runs, self.visible_runs)
 		return
 	end
 
@@ -1608,6 +3273,38 @@ local function handle_command(self, command)
 
 	if command == "run_regressions" then
 		run_regression_suite(self)
+		return
+	end
+
+	if command == "select_all" then
+		select_all_nodes(self)
+		return
+	end
+
+	if command == "copy" then
+		copy_selected_nodes(self)
+		return
+	end
+
+	if command == "paste" then
+		paste_selected_nodes(self)
+		return
+	end
+
+	if command == "undo" then
+		undo_editor_change(self)
+		return
+	end
+
+	if command == "redo" then
+		redo_editor_change(self)
+		return
+	end
+
+	if command == "zoom_fit" then
+		fit_camera_to_diagram(self)
+		self.status_line = "Zoomed to fit diagram."
+		self.render_dirty = true
 		return
 	end
 
@@ -1647,11 +3344,11 @@ local function handle_command(self, command)
 	end
 
 	if command == "arm_link" then
-		if self.selected_node_id ~= nil then
+		if self.selected_node_id ~= nil and get_design_node(self.design_diagram, self.selected_node_id) ~= nil then
 			self.link_from_node_id = self.selected_node_id
 			self.status_line = "Link mode armed from " .. self.selected_node_id .. ". Click target node."
 		else
-			self.status_line = "Select node before arming link."
+			self.status_line = "Select functional node before arming link."
 		end
 		self.render_dirty = true
 		return
@@ -1659,6 +3356,12 @@ local function handle_command(self, command)
 
 	if command == "delete_selected" then
 		delete_selected_node(self)
+		return
+	end
+
+	if command == "new_blank" then
+		apply_design_diagram(self, build_blank_diagram(), "Created blank diagram.", true)
+		self.current_diagram_key = nil
 		return
 	end
 
@@ -1672,19 +3375,130 @@ local function handle_command(self, command)
 		return
 	end
 
+	if command == "export_selection" then
+		export_selection_snapshot(self)
+		return
+	end
+
+	if command == "save_svg" then
+		save_diagram_svg(self)
+		return
+	end
+
 	if command == "load" then
 		local loaded = load_design_diagram(self, DEFAULT_DIAGRAM_PATH)
 		if not loaded then
-			local fallback = load_fallback_diagram()
+			local fallback = build_blank_diagram()
 			apply_design_diagram(self, fallback, "Loaded fallback diagram.", true)
+			self.current_diagram_key = detect_library_key_from_path(DEFAULT_DIAGRAM_PATH)
 		end
 		return
 	end
 
 	if command == "import" then
 		load_design_diagram(self, LEGACY_SAMPLE_PATH)
+		self.current_diagram_key = nil
 		return
 	end
+end
+
+get_selected_node_ids = function(self)
+	local ordered = {}
+	local seen = {}
+	for _, node_id in ipairs(self.selected_node_ids or {}) do
+		if not seen[node_id] and node_id_exists(self.design_diagram, node_id) then
+			seen[node_id] = true
+			ordered[#ordered + 1] = node_id
+		end
+	end
+	if #ordered == 0 and self.selected_node_id ~= nil and node_id_exists(self.design_diagram, self.selected_node_id) then
+		ordered[1] = self.selected_node_id
+	end
+	return ordered
+end
+
+set_selected_nodes = function(self, selected_ids, primary_selected_id)
+	local ordered = {}
+	local seen = {}
+	for _, node_id in ipairs(selected_ids or {}) do
+		if not seen[node_id] and node_id_exists(self.design_diagram, node_id) then
+			seen[node_id] = true
+			ordered[#ordered + 1] = node_id
+		end
+	end
+	self.selected_node_ids = ordered
+	self.selected_node_id = nil
+	if primary_selected_id ~= nil and seen[primary_selected_id] then
+		self.selected_node_id = primary_selected_id
+	else
+		self.selected_node_id = ordered[1]
+	end
+	self.selected_connection_id = nil
+end
+
+select_single_node = function(self, node_id)
+	if node_id ~= nil and node_id_exists(self.design_diagram, node_id) then
+		set_selected_nodes(self, { node_id }, node_id)
+	else
+		set_selected_nodes(self, {}, nil)
+	end
+end
+
+select_single_connection = function(self, connection_id)
+	self.selected_node_ids = {}
+	self.selected_node_id = nil
+	if connection_id ~= nil and (get_design_connection(self.design_diagram, connection_id) ~= nil or get_visual_connection(self.design_diagram, connection_id) ~= nil) then
+		self.selected_connection_id = connection_id
+	else
+		self.selected_connection_id = nil
+	end
+end
+
+sync_run_settings = function(self)
+	local legacy_import = self.design_diagram and self.design_diagram.legacy_import or nil
+	local runs = self.design_diagram.number_of_runs
+	if runs == nil and type(legacy_import) == "table" then
+		runs = legacy_import.number_of_runs
+	end
+	local visible_runs = self.design_diagram.visible_runs
+	if visible_runs == nil and type(legacy_import) == "table" then
+		visible_runs = legacy_import.visible_runs
+	end
+	runs, visible_runs = EditorActions.normalize_run_settings(
+		runs or self.number_of_runs or DEFAULT_NUMBER_OF_RUNS,
+		visible_runs or self.visible_runs or DEFAULT_VISIBLE_RUNS
+	)
+	self.number_of_runs = runs
+	self.visible_runs = visible_runs
+	self.design_diagram.number_of_runs = runs
+	self.design_diagram.visible_runs = visible_runs
+end
+
+capture_history_snapshot = function(self)
+	local snapshot = EditorActions.snapshot(
+		self.design_diagram,
+		self.editor_positions,
+		get_selected_node_ids(self),
+		self.selected_node_id,
+		{
+			x = self.camera_x,
+			y = self.camera_y,
+			zoom = self.camera_zoom,
+		}
+	)
+	snapshot.selected_connection_id = self.selected_connection_id
+	return snapshot
+end
+
+reset_history = function(self)
+	self.history = EditorActions.new_history(capture_history_snapshot(self), HISTORY_LIMIT)
+end
+
+push_history_state = function(self)
+	self.history = EditorActions.push_history(
+		self.history or EditorActions.new_history(nil, HISTORY_LIMIT),
+		capture_history_snapshot(self)
+	)
 end
 
 local function handle_pointer_down(self, message)
@@ -1713,9 +3527,10 @@ local function handle_pointer_down(self, message)
 	if active_tool == "select" or active_tool == "resource" then
 		local handle_id = find_handle_at(self, pointer_x, pointer_y, self.viewport_w, self.viewport_h)
 		if handle_id ~= nil then
-			self.selected_node_id = handle_id
+			select_single_node(self, handle_id)
 			self.link_from_node_id = handle_id
 			self.dragging_node_id = nil
+			self.drag_node_moved = false
 			self.panning = false
 			self.status_line = "Link mode armed from " .. handle_id .. ". Click target node."
 			self.render_dirty = true
@@ -1732,22 +3547,36 @@ local function handle_pointer_down(self, message)
 	)
 
 	local hit_id = find_node_at(self, world_x, world_y)
+	local hit_design_node = hit_id ~= nil and get_design_node(self.design_diagram, hit_id) or nil
+	local hit_connection_id = nil
+	if hit_id == nil then
+		hit_connection_id = find_connection_at(self, world_x, world_y)
+	end
 
 	if active_tool == "resource" then
 		if self.link_from_node_id == nil then
-			if hit_id ~= nil then
-				self.selected_node_id = hit_id
+			if hit_design_node ~= nil then
+				select_single_node(self, hit_id)
 				self.link_from_node_id = hit_id
 				self.status_line = "Link mode armed from " .. hit_id .. ". Click target node."
+			elseif hit_id ~= nil then
+				self.status_line = "Resource connection tool requires functional nodes."
 			else
 				self.status_line = "Resource connection tool: click a source node."
 			end
-		elseif hit_id ~= nil and hit_id ~= self.link_from_node_id then
-			add_connection(self, self.link_from_node_id, hit_id)
-			self.status_line = "Added connection: " .. self.link_from_node_id .. " -> " .. hit_id
-			self.selected_node_id = hit_id
-			self.link_from_node_id = nil
-			restart_runtime(self)
+		elseif hit_design_node ~= nil and hit_id ~= self.link_from_node_id then
+			local added = add_connection(self, self.link_from_node_id, hit_id)
+			if added then
+				self.status_line = "Added connection: " .. self.link_from_node_id .. " -> " .. hit_id
+				select_single_node(self, hit_id)
+				self.link_from_node_id = nil
+				restart_runtime(self)
+				push_history_state(self)
+			else
+				self.status_line = "Connection already exists."
+			end
+		elseif hit_id ~= nil then
+			self.status_line = "Resource connection tool requires functional nodes."
 		else
 			self.status_line = "Link cancelled."
 			self.link_from_node_id = nil
@@ -1757,7 +3586,40 @@ local function handle_pointer_down(self, message)
 	end
 
 	if active_tool == "state" then
-		self.status_line = "State connection tool is not implemented yet."
+		if self.link_from_node_id == nil then
+			if hit_design_node ~= nil then
+				select_single_node(self, hit_id)
+				self.link_from_node_id = hit_id
+				self.status_line = "State link armed from " .. hit_id .. ". Click target node."
+			elseif hit_id ~= nil then
+				self.status_line = "State connection tool requires functional nodes."
+			else
+				self.status_line = "State connection tool: click a source node."
+			end
+		elseif hit_design_node ~= nil and hit_id ~= self.link_from_node_id then
+			local added = add_connection(self, self.link_from_node_id, hit_id, types.CONNECTION.STATE, {
+				action = types.STATE_ACTION.SET_ENABLED,
+				source_field = types.STATE_FIELD.RESOURCES,
+				comparator = types.COMPARATOR.GREATER,
+				value = 0,
+				scale = 1,
+				target_enabled = true,
+			})
+			if added then
+				self.status_line = "Added state connection: " .. self.link_from_node_id .. " => " .. hit_id
+				select_single_node(self, hit_id)
+				self.link_from_node_id = nil
+				restart_runtime(self)
+				push_history_state(self)
+			else
+				self.status_line = "State connection already exists."
+			end
+		elseif hit_id ~= nil then
+			self.status_line = "State connection tool requires functional nodes."
+		else
+			self.status_line = "State link cancelled."
+			self.link_from_node_id = nil
+		end
 		self.render_dirty = true
 		return
 	end
@@ -1768,6 +3630,26 @@ local function handle_pointer_down(self, message)
 		return
 	end
 
+	if active_tool == "text" then
+		add_visual_node(self, "TextLabel", world_x, world_y)
+		return
+	end
+
+	if active_tool == "group" then
+		add_visual_node(self, "GroupBox", world_x, world_y)
+		return
+	end
+
+	if active_tool == "chart" then
+		add_visual_node(self, "Chart", world_x, world_y)
+		return
+	end
+
+	if active_tool == "ap" then
+		add_node(self, "artificial_player", world_x, world_y)
+		return
+	end
+
 	if active_tool ~= "select" then
 		self.status_line = "Tool not implemented yet: " .. tostring(active_tool)
 		self.render_dirty = true
@@ -1775,11 +3657,19 @@ local function handle_pointer_down(self, message)
 	end
 
 	if self.link_from_node_id ~= nil then
-		if hit_id ~= nil and hit_id ~= self.link_from_node_id then
-			add_connection(self, self.link_from_node_id, hit_id)
-			self.status_line = "Added connection: " .. self.link_from_node_id .. " -> " .. hit_id
-			self.link_from_node_id = nil
-			restart_runtime(self)
+		if hit_design_node ~= nil and hit_id ~= self.link_from_node_id then
+			local added = add_connection(self, self.link_from_node_id, hit_id)
+			if added then
+				self.status_line = "Added connection: " .. self.link_from_node_id .. " -> " .. hit_id
+				self.link_from_node_id = nil
+				restart_runtime(self)
+				select_single_node(self, hit_id)
+				push_history_state(self)
+			else
+				self.status_line = "Connection already exists."
+			end
+		elseif hit_id ~= nil then
+			self.status_line = "Link target must be a functional node."
 		else
 			self.status_line = "Link cancelled."
 			self.link_from_node_id = nil
@@ -1788,16 +3678,43 @@ local function handle_pointer_down(self, message)
 		return
 	end
 
-	self.selected_node_id = hit_id
+	if hit_id ~= nil then
+		select_single_node(self, hit_id)
+	elseif hit_connection_id ~= nil then
+		select_single_connection(self, hit_connection_id)
+		self.dragging_node_id = nil
+		self.drag_node_moved = false
+		self.panning = false
+		self.status_line = "Selected connection: " .. tostring(hit_connection_id)
+		self.render_dirty = true
+		return
+	else
+		select_single_node(self, nil)
+	end
 
 	if hit_id ~= nil then
 		local pos = self.editor_positions[hit_id]
+		if pos == nil then
+			local visual_node = get_visual_node(self.design_diagram, hit_id)
+			if visual_node ~= nil then
+				local width, height = get_payload_dimensions(nil, visual_node)
+				local center_x, center_y = resolve_visual_anchor_position(visual_node, width, height)
+				pos = { x = center_x, y = center_y }
+			end
+		end
 		self.dragging_node_id = hit_id
-		self.drag_offset_x = pos.x - world_x
-		self.drag_offset_y = pos.y - world_y
-		self.panning = false
+		self.drag_node_moved = false
+		if pos ~= nil then
+			self.drag_offset_x = pos.x - world_x
+			self.drag_offset_y = pos.y - world_y
+			self.panning = false
+		else
+			self.dragging_node_id = nil
+			self.panning = false
+		end
 	else
 		self.dragging_node_id = nil
+		self.drag_node_moved = false
 		self.panning = true
 	end
 
@@ -1825,7 +3742,15 @@ local function handle_pointer_move(self, message)
 		if pos ~= nil then
 			pos.x = world_x + self.drag_offset_x
 			pos.y = world_y + self.drag_offset_y
+			self.drag_node_moved = true
 			self.render_dirty = true
+		else
+			local visual_node = get_visual_node(self.design_diagram, self.dragging_node_id)
+			if visual_node ~= nil then
+				set_visual_anchor_position(visual_node, world_x + self.drag_offset_x, world_y + self.drag_offset_y)
+				self.drag_node_moved = true
+				self.render_dirty = true
+			end
 		end
 	elseif self.panning then
 		self.camera_x = self.camera_x - dx / self.camera_zoom
@@ -1838,10 +3763,15 @@ local function handle_pointer_move(self, message)
 end
 
 local function handle_pointer_up(self, message)
+	local should_commit_drag = self.dragging_node_id ~= nil and self.drag_node_moved == true
 	self.dragging_node_id = nil
+	self.drag_node_moved = false
 	self.panning = false
 	self.last_pointer_x = message.x or self.last_pointer_x
 	self.last_pointer_y = message.y or self.last_pointer_y
+	if should_commit_drag then
+		push_history_state(self)
+	end
 	self.render_dirty = true
 end
 
@@ -1892,6 +3822,8 @@ function init(self)
 	self.last_pointer_x = 0
 	self.last_pointer_y = 0
 	self.selected_node_id = nil
+	self.selected_node_ids = {}
+	self.selected_connection_id = nil
 	self.link_from_node_id = nil
 	self.active_tool = "select"
 	self.status_line = ""
@@ -1905,20 +3837,39 @@ function init(self)
 	self.render_dirty = true
 	self.design_diagram = nil
 	self.initial_diagram = nil
+	self.current_diagram_key = nil
 	self.editor_positions = {}
 	self.runtime_state = nil
 	self.autogen_case_index = 0
+	self.number_of_runs = DEFAULT_NUMBER_OF_RUNS
+	self.visible_runs = DEFAULT_VISIBLE_RUNS
+	self.clipboard = nil
+	self.paste_shift = 0
+	self.history = EditorActions.new_history(nil, HISTORY_LIMIT)
 
 	local loaded = false
 	if file_exists(DEFAULT_DIAGRAM_PATH) then
-		loaded = load_design_diagram(self, DEFAULT_DIAGRAM_PATH)
+		local ok, result = pcall(load_design_diagram, self, DEFAULT_DIAGRAM_PATH)
+		if ok then
+			loaded = result
+		else
+			self.status_line = "Load bootstrap failed: " .. tostring(result)
+		end
 	end
 	if not loaded then
-		local fallback = load_fallback_diagram()
-		apply_design_diagram(self, fallback, "Loaded fallback diagram.", true)
+		local fallback = build_blank_diagram()
+		local ok, err = pcall(apply_design_diagram, self, fallback, "Loaded fallback diagram.", true)
+		if ok then
+			self.current_diagram_key = detect_library_key_from_path(DEFAULT_DIAGRAM_PATH)
+		else
+			self.status_line = "Fallback bootstrap failed: " .. tostring(err)
+		end
 	end
 
-	run_regression_suite(self)
+	local regressions_ok, regressions_err = pcall(run_regression_suite, self)
+	if not regressions_ok then
+		self.status_line = "Regression bootstrap failed: " .. tostring(regressions_err)
+	end
 	if self.last_regression_report ~= nil then
 		print(string.format(
 			"machinations_editor: regressions %d/%d passed",
@@ -1927,7 +3878,7 @@ function init(self)
 		))
 	end
 
-	self.status_line = "Editor ready. Drag nodes, pan empty space, zoom with wheel. P builds a generated case, U verifies the generated suite."
+	self.status_line = "Editor ready. Use Graph/Edit/File/Run tabs for legacy actions. P builds a generated case, U verifies the generated suite."
 	if self.last_regression_report ~= nil then
 		self.status_line = self.status_line .. string.format(
 			" Regressions %d/%d.",
@@ -1936,7 +3887,6 @@ function init(self)
 		)
 	end
 	self.render_dirty = true
-	send_render(self)
 	print("machinations_editor: initialized")
 end
 

@@ -1,4 +1,6 @@
 local MSG_EDITOR_RENDER_META = hash("editor_render_meta")
+local MSG_EDITOR_RENDER_INSPECTOR = hash("editor_render_inspector")
+local MSG_EDITOR_RENDER_LIBRARY = hash("editor_render_library")
 local MSG_EDITOR_RENDER_NODES = hash("editor_render_nodes")
 local MSG_EDITOR_RENDER_EDGES = hash("editor_render_edges")
 local MSG_EDITOR_RENDER_CHART = hash("editor_render_chart")
@@ -16,24 +18,37 @@ local HASH_MOUSE_WHEEL_DOWN = hash("mouse_wheel_down")
 
 local HASH_KEY_SPACE = hash("key_space")
 local HASH_KEY_ENTER = hash("key_enter")
+local HASH_KEY_A = hash("key_a")
 local HASH_KEY_B = hash("key_b")
-local HASH_KEY_I = hash("key_i")
-local HASH_KEY_N = hash("key_n")
-local HASH_KEY_P = hash("key_p")
-local HASH_KEY_S = hash("key_s")
-local HASH_KEY_G = hash("key_g")
-local HASH_KEY_D = hash("key_d")
-local HASH_KEY_Q = hash("key_q")
+local HASH_KEY_C = hash("key_c")
 local HASH_KEY_E = hash("key_e")
+local HASH_KEY_G = hash("key_g")
+local HASH_KEY_I = hash("key_i")
+local HASH_KEY_M = hash("key_m")
+local HASH_KEY_N = hash("key_n")
+local HASH_KEY_O = hash("key_o")
+local HASH_KEY_P = hash("key_p")
+local HASH_KEY_Q = hash("key_q")
+local HASH_KEY_S = hash("key_s")
 local HASH_KEY_U = hash("key_u")
 local HASH_KEY_V = hash("key_v")
-local HASH_KEY_C = hash("key_c")
+local HASH_KEY_W = hash("key_w")
+local HASH_KEY_X = hash("key_x")
+local HASH_KEY_Y = hash("key_y")
+local HASH_KEY_Z = hash("key_z")
+local HASH_KEY_F = hash("key_f")
+local HASH_KEY_H = hash("key_h")
+local HASH_KEY_J = hash("key_j")
+local HASH_KEY_K = hash("key_k")
+local HASH_KEY_L = hash("key_l")
 local HASH_KEY_DELETE = hash("key_delete")
 local HASH_KEY_BACKSPACE = hash("key_backspace")
 local HASH_KEY_R = hash("key_r")
-local HASH_KEY_L = hash("key_l")
-local HASH_KEY_K = hash("key_k")
 local HASH_KEY_T = hash("key_t")
+local HASH_KEY_1 = hash("key_1")
+local HASH_KEY_2 = hash("key_2")
+local HASH_KEY_3 = hash("key_3")
+local HASH_KEY_4 = hash("key_4")
 
 local NODE_BOX_BASE_SCALE = 0.98
 local NODE_TITLE_BASE_SCALE = 0.68
@@ -56,52 +71,52 @@ local UI_PADDING = 12
 local BUTTON_GAP = 4
 
 local SIDE_TABS = {
-	{ key = "graph", label = "Inspect" },
-	{ key = "edit", label = "Actions" },
-	{ key = "file", label = "Files" },
-	{ key = "run", label = "Predict" },
+	{ key = "graph", label = "Graph" },
+	{ key = "edit", label = "Edit" },
+	{ key = "file", label = "File" },
+	{ key = "run", label = "Run" },
 }
 
 local GRAPH_TOOL_BUTTONS = {
-	{ key = "select", label = "[]", command = "tool:select", center = true, scale = 0.42 },
-	{ key = "text", label = "T", command = "tool:text", center = true, scale = 0.56 },
-	{ key = "group", label = "GR", command = "tool:group", center = true, scale = 0.34 },
-	{ key = "chart", label = "CH", command = "tool:chart", center = true, scale = 0.28 },
-	{ key = "pool", label = "O", command = "tool:pool", center = true, scale = 0.76 },
-	{ key = "gate", label = "<>", command = "tool:gate", center = true, scale = 0.42 },
-	{ key = "resource", label = "->", command = "tool:resource", center = true, scale = 0.50 },
-	{ key = "state", label = "S>", command = "tool:state", center = true, scale = 0.34 },
-	{ key = "source", label = "/\\", command = "tool:source", center = true, scale = 0.36 },
-	{ key = "drain", label = "\\/", command = "tool:drain", center = true, scale = 0.36 },
+	{ key = "select", label = "SEL", command = "tool:select", center = true, scale = 0.42 },
+	{ key = "text", label = "T", command = "tool:text", center = true, scale = 0.52 },
+	{ key = "group", label = "GB", command = "tool:group", center = true, scale = 0.42 },
+	{ key = "chart", label = "CH", command = "tool:chart", center = true, scale = 0.4 },
+	{ key = "pool", label = "O", command = "tool:pool", center = true, scale = 0.58 },
+	{ key = "gate", label = "<>", command = "tool:gate", center = true, scale = 0.44 },
+	{ key = "resource", label = "->", command = "tool:resource", center = true, scale = 0.42 },
+	{ key = "state", label = "S", command = "tool:state", center = true, scale = 0.48 },
+	{ key = "source", label = "/\\\\", command = "tool:source", center = true, scale = 0.42 },
+	{ key = "drain", label = "\\\\/", command = "tool:drain", center = true, scale = 0.42 },
 	{ key = "converter", label = ">|", command = "tool:converter", center = true, scale = 0.42 },
 	{ key = "trader", label = "><", command = "tool:trader", center = true, scale = 0.42 },
-	{ key = "delay", label = "D", command = "tool:delay", center = true, scale = 0.62 },
-	{ key = "register", label = "R", command = "tool:register", center = true, scale = 0.62 },
-	{ key = "end", label = "[]", command = "tool:end", center = true, scale = 0.42 },
-	{ key = "ap", label = "AP", command = "tool:ap", center = true, scale = 0.34 },
+	{ key = "delay", label = "[]", command = "tool:delay", center = true, scale = 0.42 },
+	{ key = "register", label = "0", command = "tool:register", center = true, scale = 0.52 },
+	{ key = "end", label = "END", command = "tool:end", center = true, scale = 0.34 },
+	{ key = "ap", label = "AP", command = "tool:ap", center = true, scale = 0.38 },
 }
 
 local EDIT_ACTION_BUTTONS = {
-	{ key = "select_all", label = "Select All (A)", command = nil },
-	{ key = "copy", label = "Copy (C)", command = nil },
-	{ key = "paste", label = "Paste (V)", command = nil },
-	{ key = "undo", label = "Undo (Z)", command = nil },
-	{ key = "redo", label = "Redo (Y)", command = nil },
-	{ key = "zoom", label = "Zoom (M)", command = nil },
+	{ key = "select_all", label = "Select All (A)", command = "select_all" },
+	{ key = "copy", label = "Copy (C)", command = "copy" },
+	{ key = "paste", label = "Paste (V)", command = "paste" },
+	{ key = "undo", label = "Undo (Z)", command = "undo" },
+	{ key = "redo", label = "Redo (Y)", command = "redo" },
+	{ key = "zoom", label = "Zoom (M)", command = "zoom_fit" },
 }
 
 local FILE_ACTION_BUTTONS = {
-	{ key = "new", label = "New (N)", command = "reset" },
+	{ key = "new", label = "New (N)", command = "new_blank" },
 	{ key = "open", label = "Open (O)", command = "load" },
 	{ key = "import", label = "Import (I)", command = "import" },
 	{ key = "save", label = "Save (S)", command = "save" },
-	{ key = "export_selection", label = "Export Selection (E)", command = nil },
-	{ key = "save_svg", label = "Save as SVG (G)", command = nil },
+	{ key = "export_selection", label = "Export Selection (E)", command = "export_selection" },
+	{ key = "save_svg", label = "Save as SVG (G)", command = "save_svg" },
 }
 
 local RUN_ACTION_BUTTONS = {
-	{ key = "quick_run", label = "Quick Play", command = "toggle_autoplay" },
-	{ key = "multiple_runs", label = "Batch x100", command = "batch" },
+	{ key = "quick_run", label = "Quick Run", command = "quick_run" },
+	{ key = "multiple_runs", label = "Multiple Runs", command = "multiple_runs" },
 	{ key = "auto_build", label = "Auto Build (P)", command = "autogen_next" },
 	{ key = "auto_verify", label = "Auto Verify (U)", command = "autoverify" },
 }
@@ -242,11 +257,11 @@ local function update_responsive_layout(self)
 
 	gui.set_color(self.canvas_bg, hex_color(0xEEF3F9))
 	gui.set_color(self.canvas_tint, vmath.vector4(0.76, 0.84, 0.96, 0.08))
-	gui.set_color(self.top_bar, hex_color(0xFBFCFE))
-	gui.set_color(self.left_panel, hex_color(0xFBFCFE))
+	gui.set_color(self.top_bar, hex_color(0x16283B))
+	gui.set_color(self.left_panel, hex_color(0xF7FAFD))
 	gui.set_color(self.canvas_view, hex_color(0xFCFDFE))
 	gui.set_color(self.bottom_bar, vmath.vector4(0, 0, 0, 0))
-	gui.set_color(self.right_panel, hex_color(0xFBFCFE))
+	gui.set_color(self.right_panel, hex_color(0xF9FBFE))
 
 	set_text_layout(self.title_text, frame_left + 20, top_y - 13, 1.12, 1.12)
 	set_text_layout(self.hud_text, frame_left + 22, top_y - 39, 0.46, 0.46)
@@ -254,9 +269,9 @@ local function update_responsive_layout(self)
 	gui.set_size(self.title_text, vmath.vector3(180, 34, 0))
 	gui.set_size(self.hud_text, vmath.vector3(360, 20, 0))
 	gui.set_size(self.left_help_text, vmath.vector3(math.max(frame_width - 520, 240), 28, 0))
-	gui.set_color(self.title_text, hex_color(0x10233A))
-	gui.set_color(self.hud_text, hex_color(0x71839A))
-	gui.set_color(self.left_help_text, hex_color(0x506175))
+	gui.set_color(self.title_text, hex_color(0xF5F8FC))
+	gui.set_color(self.hud_text, hex_color(0xA8B7C8))
+	gui.set_color(self.left_help_text, hex_color(0xC5D1DD))
 
 	set_box_layout(self.tools_bar_bg, -400, -400, 1, 1)
 	set_text_layout(self.tools_bar_text, -400, -400, 0.1, 0.1)
@@ -382,6 +397,9 @@ local function node_color(node)
 end
 
 local function edge_color(edge)
+	if edge.selected then
+		return vmath.vector4(0.14, 0.41, 0.9, 1)
+	end
 	if edge.visual_only then
 		if edge.connection_type == "state" then
 			return vmath.vector4(0.95, 0.56, 0.2, 0.55)
@@ -442,12 +460,18 @@ local function node_icon_color(node)
 	if node.node_type == "register" then
 		return vmath.vector4(0.17, 0.42, 0.77, 0.96)
 	end
+	if node.node_type == "artificial_player" then
+		return vmath.vector4(0.16, 0.32, 0.55, 0.96)
+	end
 	return vmath.vector4(0.22, 0.32, 0.46, 0.95)
 end
 
 local function node_title_color(node)
 	if node.visual_only and node.node_type == "legacy_textlabel" then
 		return hex_color(0x10233A)
+	end
+	if not node.visual_only then
+		return node_icon_color(node)
 	end
 	return vmath.vector4(0.08, 0.14, 0.22, 1)
 end
@@ -456,7 +480,22 @@ local function node_value_color(node)
 	if node.visual_only and node.node_type == "legacy_chart" then
 		return vmath.vector4(0.24, 0.29, 0.4, 0.9)
 	end
+	if not node.visual_only then
+		return vmath.vector4(0.08, 0.12, 0.18, 1)
+	end
 	return vmath.vector4(0.38, 0.47, 0.59, 1)
+end
+
+local function node_uses_shape_texture(node)
+	local shape = node.shape or "rect"
+	return shape ~= "rect" and shape ~= "chart" and shape ~= "groupbox" and shape ~= "textlabel"
+end
+
+local function node_shows_compact_value(node)
+	if node.visual_only then
+		return node.node_type == "legacy_endcondition" or node.node_type == "legacy_artificialplayer"
+	end
+	return node.node_type == "pool" or node.node_type == "register" or node.node_type == "delay" or node.node_type == "queue" or node.node_type == "end_condition" or node.node_type == "artificial_player"
 end
 
 local function ensure_node_view(self, node_id)
@@ -465,18 +504,22 @@ local function ensure_node_view(self, node_id)
 		return existing
 	end
 
+	local shape = gui.clone(self.node_shape_template)
 	local box = gui.clone(self.node_box_template)
 	local title = gui.clone(self.node_title_template)
 	local value = gui.clone(self.node_value_template)
 	local icon = gui.clone(self.node_icon_template)
 	local handle = gui.clone(self.node_handle_template)
+	gui.set_enabled(shape, true)
 	gui.set_enabled(box, true)
 	gui.set_enabled(title, true)
 	gui.set_enabled(value, true)
 	gui.set_enabled(icon, true)
 	gui.set_enabled(handle, true)
+	gui.set_texture(shape, "machinations_shapes")
 
 	local created = {
+		shape = shape,
 		box = box,
 		title = title,
 		value = value,
@@ -504,6 +547,7 @@ local function ensure_edge_view(self, edge_id)
 end
 
 local function delete_node_view(view)
+	gui.delete_node(view.shape)
 	gui.delete_node(view.box)
 	gui.delete_node(view.title)
 	gui.delete_node(view.value)
@@ -616,15 +660,36 @@ local function render_nodes(self, nodes)
 		if node.selected then
 			box_color = vmath.vector4(0.86, 0.92, 1, 1)
 		end
+		local uses_shape = node_uses_shape_texture(node)
+		local shape_key = node.shape or "rect"
 
-		gui.set_position(view.box, vmath.vector3(x, y, 0))
-		gui.set_size(view.box, vmath.vector3(width, height, 0))
-		gui.set_scale(view.box, vmath.vector3(1, 1, 1))
-		gui.set_color(view.box, box_color)
+		if uses_shape then
+			local shape_size = math.max(math.min(width, height) * 1.08, 44)
+			gui.set_enabled(view.shape, true)
+			gui.set_position(view.shape, vmath.vector3(x, y, 0))
+			gui.set_size(view.shape, vmath.vector3(shape_size, shape_size, 0))
+			gui.set_scale(view.shape, vmath.vector3(1, 1, 1))
+			gui.set_color(view.shape, box_color)
+			if view.shape_key ~= shape_key then
+				gui.play_flipbook(view.shape, hash(shape_key))
+				view.shape_key = shape_key
+			end
+			gui.set_enabled(view.box, false)
+		else
+			gui.set_enabled(view.shape, false)
+			gui.set_enabled(view.box, node.node_type ~= "legacy_textlabel")
+			gui.set_position(view.box, vmath.vector3(x, y, 0))
+			gui.set_size(view.box, vmath.vector3(width, height, 0))
+			gui.set_scale(view.box, vmath.vector3(1, 1, 1))
+			gui.set_color(view.box, box_color)
+		end
 
 		local title_x = x + width * 0.08
 		local title_y = y + height * 0.22
-		if node.node_type == "legacy_textlabel" then
+		if uses_shape then
+			title_x = x
+			title_y = y - math.max(math.min(width, height) * 0.72, 34)
+		elseif node.node_type == "legacy_textlabel" then
 			title_x = x
 			title_y = y + 6
 		elseif node.node_type == "legacy_groupbox" then
@@ -638,24 +703,30 @@ local function render_nodes(self, nodes)
 
 		local value_x = x + width * 0.08
 		local value_y = y - height * 0.26
-		if node.node_type == "legacy_chart" then
+		if uses_shape then
+			value_x = x
+			value_y = y - 6
+		elseif node.node_type == "legacy_chart" then
 			value_x = x - width * 0.42
 			value_y = y - height * 0.36
 		end
 		gui.set_position(view.value, vmath.vector3(value_x, value_y, 0))
 		gui.set_scale(view.value, vmath.vector3(NODE_VALUE_BASE_SCALE * text_scale, NODE_VALUE_BASE_SCALE * text_scale, 1))
-		gui.set_text(view.value, format_node_value(node))
+		gui.set_text(view.value, node_shows_compact_value(node) and format_node_value(node) or "")
 		gui.set_color(view.value, node_value_color(node))
 
 		local icon_x = x - width * 0.38
 		local icon_y = y + height * 0.16
-		if node.node_type == "legacy_groupbox" or node.node_type == "legacy_textlabel" then
+		if uses_shape then
+			icon_x = x
+			icon_y = y
+		elseif node.node_type == "legacy_groupbox" or node.node_type == "legacy_textlabel" then
 			icon_x = x
 			icon_y = y
 		end
 		gui.set_position(view.icon, vmath.vector3(icon_x, icon_y, 0))
 		gui.set_scale(view.icon, vmath.vector3(NODE_ICON_BASE_SCALE * text_scale, NODE_ICON_BASE_SCALE * text_scale, 1))
-		gui.set_text(view.icon, node.node_type == "legacy_textlabel" and "" or (node.icon or "?"))
+		gui.set_text(view.icon, uses_shape and "" or (node.node_type == "legacy_textlabel" and "" or (node.icon or "?")))
 		gui.set_color(view.icon, node_icon_color(node))
 
 		gui.set_position(view.handle, vmath.vector3(x + width * 0.5 + 10, y, 0))
@@ -702,7 +773,8 @@ local function render_edges(self, edges)
 				used_segments = used_segments + 1
 				local line = ensure_edge_segment_view(self, edge_view, used_segments)
 				local angle = math.atan2(dy, dx)
-				local thickness = clamp((edge.visual_only and 1.4 or 1.8) * self.camera_zoom, 1.0, edge.visual_only and 2.1 or 2.8)
+				local base_thickness = edge.selected and 2.6 or (edge.visual_only and 1.4 or 1.8)
+				local thickness = clamp(base_thickness * self.camera_zoom, 1.0, edge.selected and 3.8 or (edge.visual_only and 2.1 or 2.8))
 				gui.set_position(line, vmath.vector3((from_point.x + to_point.x) * 0.5, (from_point.y + to_point.y) * 0.5, 0))
 				gui.set_size(line, vmath.vector3(length, thickness, 0))
 				gui.set_rotation(line, vmath.quat_rotation_z(angle))
@@ -890,6 +962,16 @@ local function trim_extra_field_views(views, used_count)
 end
 
 local function set_field_view_layout(view, label_x, y, field_x, field_w, label, value)
+	local display_value = value
+	local is_editable = view.editable == true
+	if is_editable then
+		if view.left_command ~= nil and view.right_command ~= nil then
+			display_value = "‹ " .. tostring(value) .. " ›"
+		elseif view.click_command ~= nil then
+			display_value = tostring(value) .. " •"
+		end
+	end
+
 	gui.set_position(view.label, vmath.vector3(label_x, y - 4, 0))
 	gui.set_size(view.label, vmath.vector3(math.max(field_x - label_x - 8, 1), 20, 0))
 	gui.set_scale(view.label, vmath.vector3(0.5, 0.5, 1))
@@ -898,17 +980,17 @@ local function set_field_view_layout(view, label_x, y, field_x, field_w, label, 
 
 	gui.set_position(view.outer, vmath.vector3(field_x + field_w * 0.5, y - 12, 0))
 	gui.set_size(view.outer, vmath.vector3(math.max(field_w, 1), 24, 0))
-	gui.set_color(view.outer, hex_color(0xDFE6EF))
+	gui.set_color(view.outer, is_editable and hex_color(0xBBD0F5) or hex_color(0xDFE6EF))
 
 	gui.set_position(view.inner, vmath.vector3(field_x + field_w * 0.5, y - 12, 0))
 	gui.set_size(view.inner, vmath.vector3(math.max(field_w - 4, 1), 20, 0))
-	gui.set_color(view.inner, hex_color(0xFFFFFF))
+	gui.set_color(view.inner, is_editable and hex_color(0xF4F8FF) or hex_color(0xFFFFFF))
 
 	gui.set_position(view.value, vmath.vector3(field_x + 8, y - 4, 0))
 	gui.set_size(view.value, vmath.vector3(math.max(field_w - 12, 1), 20, 0))
 	gui.set_scale(view.value, vmath.vector3(0.5, 0.5, 1))
-	gui.set_text(view.value, value)
-	gui.set_color(view.value, hex_color(0x10233A))
+	gui.set_text(view.value, display_value)
+	gui.set_color(view.value, is_editable and hex_color(0x1E4D92) or hex_color(0x10233A))
 end
 
 local function ensure_line_view(views, template, index)
@@ -941,6 +1023,171 @@ local function trim_extra_line_views(views, used_count)
 			gui.delete_node(line)
 			views[index] = nil
 		end
+	end
+end
+
+local function ensure_tool_glyph_view(self, index)
+	local existing = self.tool_glyph_views[index]
+	if existing ~= nil then
+		return existing
+	end
+
+	local segments = {}
+	local blocks = {}
+	for glyph_index = 1, 6 do
+		local line = gui.clone(self.edge_template)
+		gui.set_enabled(line, true)
+		gui.set_layer(line, "ui")
+		segments[glyph_index] = line
+	end
+	for glyph_index = 1, 3 do
+		local block = gui.clone(self.chrome_inner_template)
+		gui.set_enabled(block, true)
+		gui.set_layer(block, "ui")
+		blocks[glyph_index] = block
+	end
+
+	local created = {
+		segments = segments,
+		blocks = blocks,
+	}
+	self.tool_glyph_views[index] = created
+	return created
+end
+
+local function hide_glyph_line(line)
+	gui.set_position(line, vmath.vector3(-1024, -1024, 0))
+	gui.set_size(line, vmath.vector3(1, 1, 0))
+	gui.set_color(line, vmath.vector4(0, 0, 0, 0))
+end
+
+local function hide_glyph_block(block)
+	gui.set_position(block, vmath.vector3(-1024, -1024, 0))
+	gui.set_size(block, vmath.vector3(1, 1, 0))
+	gui.set_color(block, vmath.vector4(0, 0, 0, 0))
+end
+
+local function trim_extra_tool_glyph_views(self, used_count)
+	for index, view in pairs(self.tool_glyph_views) do
+		if index > used_count then
+			for _, line in ipairs(view.segments or {}) do
+				gui.delete_node(line)
+			end
+			for _, block in ipairs(view.blocks or {}) do
+				gui.delete_node(block)
+			end
+			self.tool_glyph_views[index] = nil
+		end
+	end
+end
+
+local function set_tool_glyph_layout(view, x, y, w, h, tool_key, selected)
+	local cx = x + w * 0.5
+	local cy = y - h * 0.5
+	local color = selected and hex_color(0x1F5BA8) or hex_color(0x41556E)
+	local sx = w * 0.3
+	local sy = h * 0.34
+	local thickness = selected and 2.6 or 2.0
+	local glyph_z = 2
+
+	local function line(index, ax, ay, bx, by)
+		draw_segment(
+			view.segments[index],
+			cx + ax * sx,
+			cy + ay * sy,
+			cx + bx * sx,
+			cy + by * sy,
+			thickness,
+			color
+		)
+		local pos = gui.get_position(view.segments[index])
+		gui.set_position(view.segments[index], vmath.vector3(pos.x, pos.y, glyph_z))
+	end
+
+	local function block(index, ax, ay, bw, bh)
+		local node = view.blocks[index]
+		gui.set_position(node, vmath.vector3(cx + ax * sx, cy + ay * sy, glyph_z))
+		gui.set_size(node, vmath.vector3(math.max(bw * sx, 2), math.max(bh * sy, 2), 0))
+		gui.set_color(node, color)
+	end
+
+	for _, glyph_line in ipairs(view.segments) do
+		hide_glyph_line(glyph_line)
+	end
+	for _, glyph_block in ipairs(view.blocks) do
+		hide_glyph_block(glyph_block)
+	end
+
+	if tool_key == "select" then
+		line(1, -0.8, 0.8, 0.8, 0.8)
+		line(2, 0.8, 0.8, 0.8, -0.8)
+		line(3, 0.8, -0.8, -0.8, -0.8)
+		line(4, -0.8, -0.8, -0.8, 0.8)
+	elseif tool_key == "text" then
+		line(1, -0.8, 0.75, 0.8, 0.75)
+		line(2, 0, 0.75, 0, -0.8)
+	elseif tool_key == "group" then
+		block(1, -0.35, 0.2, 1.0, 0.7)
+		block(2, 0.35, -0.2, 1.0, 0.7)
+	elseif tool_key == "chart" then
+		block(1, -0.55, -0.3, 0.32, 1.0)
+		block(2, 0.0, 0.0, 0.32, 1.6)
+		block(3, 0.55, 0.35, 0.32, 2.2)
+	elseif tool_key == "pool" then
+		block(1, 0, 0, 1.3, 1.3)
+	elseif tool_key == "gate" then
+		line(1, 0, 1.0, 1.0, 0)
+		line(2, 1.0, 0, 0, -1.0)
+		line(3, 0, -1.0, -1.0, 0)
+		line(4, -1.0, 0, 0, 1.0)
+	elseif tool_key == "resource" then
+		line(1, -1.0, 0, 0.85, 0)
+		line(2, 0.25, 0.55, 0.85, 0)
+		line(3, 0.25, -0.55, 0.85, 0)
+	elseif tool_key == "state" then
+		block(1, -0.7, 0, 0.22, 0.22)
+		block(2, -0.25, 0, 0.22, 0.22)
+		line(1, -0.05, 0, 0.8, 0)
+		line(2, 0.3, 0.5, 0.8, 0)
+		line(3, 0.3, -0.5, 0.8, 0)
+	elseif tool_key == "source" then
+		line(1, -0.9, -0.7, 0, 0.85)
+		line(2, 0, 0.85, 0.9, -0.7)
+		line(3, -0.55, -0.1, 0.55, -0.1)
+	elseif tool_key == "drain" then
+		line(1, -0.9, 0.7, 0, -0.85)
+		line(2, 0, -0.85, 0.9, 0.7)
+		line(3, -0.55, 0.1, 0.55, 0.1)
+	elseif tool_key == "converter" then
+		line(1, -0.9, 0.75, 0.15, 0)
+		line(2, -0.9, -0.75, 0.15, 0)
+		line(3, 0.55, 0.9, 0.55, -0.9)
+	elseif tool_key == "trader" then
+		line(1, -0.95, 0.4, 0.2, 0.4)
+		line(2, -0.3, 0.95, 0.2, 0.4)
+		line(3, -0.3, -0.15, 0.2, 0.4)
+		line(4, 0.95, -0.4, -0.2, -0.4)
+		line(5, 0.3, -0.95, -0.2, -0.4)
+		line(6, 0.3, 0.15, -0.2, -0.4)
+	elseif tool_key == "delay" then
+		line(1, -0.8, 0.8, 0.8, 0.8)
+		line(2, 0.8, 0.8, -0.8, -0.8)
+		line(3, -0.8, -0.8, 0.8, -0.8)
+		line(4, -0.8, 0.8, 0.8, -0.8)
+	elseif tool_key == "register" then
+		block(1, 0, 0, 1.2, 1.5)
+		line(1, -0.5, 0.25, 0.5, 0.25)
+		line(2, -0.5, -0.25, 0.5, -0.25)
+	elseif tool_key == "end" then
+		block(1, 0, 0, 1.3, 1.3)
+		line(1, -0.55, 0.55, 0.55, -0.55)
+		line(2, -0.55, -0.55, 0.55, 0.55)
+	elseif tool_key == "ap" then
+		block(1, 0, 0.65, 0.42, 0.42)
+		line(1, 0, 0.35, 0, -0.45)
+		line(2, 0, -0.1, -0.7, -0.9)
+		line(3, 0, -0.1, 0.7, -0.9)
+		line(4, -0.6, 0.0, 0.6, 0.0)
 	end
 end
 
@@ -1006,17 +1253,17 @@ local function render_top_run_button(self)
 	end
 
 	local buttons = {
-		{ key = "step", command = "step", label = "Step" },
-		{ key = "play", command = "toggle_autoplay", label = self.autoplay and "Pause" or "Play" },
-		{ key = "batch", command = "batch", label = "Batch" },
+		{ key = "run", command = "toggle_autoplay", label = self.autoplay and "Stop" or "Run (R)" },
+		{ key = "quick", command = "quick_run", label = "Quick Run" },
+		{ key = "multiple", command = "multiple_runs", label = "Multiple Runs" },
 	}
-	local x = self.layout.frame_left + self.layout.frame_width - 268
+	local x = self.layout.frame_left + self.layout.frame_width - 352
 	for index, button in ipairs(buttons) do
 		local view = ensure_button_view(self, self.top_button_views, index, false)
 		view.key = button.key
 		view.command = button.command
-		set_button_view_layout(view, x, self.layout.top_y - 12, 80, 30, button.label, 0.5, button.key == "play" and self.autoplay == true, true)
-		x = x + 88
+		set_button_view_layout(view, x, self.layout.top_y - 12, 108, 30, button.label, 0.44, button.key == "run" and self.autoplay == true, true)
+		x = x + 116
 	end
 	trim_extra_button_views(self.top_button_views, #buttons)
 end
@@ -1036,6 +1283,7 @@ local function render_inspector(self)
 	local field_w = self.layout.right_w - 146
 	local row_y = self.layout.inspector_y - 34
 	local max_rows = math.max(math.floor((self.layout.inspector_h - 32) / 28) - 1, 3)
+	self.inspector_hotspots = {}
 
 	gui.set_text(self.status_title_text, title)
 	gui.set_color(self.status_title_text, hex_color(0x10233A))
@@ -1046,7 +1294,22 @@ local function render_inspector(self)
 		end
 		used = used + 1
 		local view = ensure_field_view(self, self.inspector_field_views, used)
+		view.left_command = field.left_command
+		view.right_command = field.right_command
+		view.click_command = field.click_command
+		view.editable = field.editable == true
 		set_field_view_layout(view, label_x, row_y, field_x, field_w, tostring(field.label or ""), tostring(field.value or ""))
+		if view.left_command ~= nil or view.right_command ~= nil or view.click_command ~= nil then
+			self.inspector_hotspots[#self.inspector_hotspots + 1] = {
+				left = field_x,
+				right = field_x + field_w,
+				top = row_y,
+				bottom = row_y - 24,
+				left_command = view.left_command,
+				right_command = view.right_command,
+				click_command = view.click_command,
+			}
+		end
 		row_y = row_y - 28
 	end
 
@@ -1063,6 +1326,22 @@ local function render_inspector(self)
 	end
 end
 
+local function pick_inspector_command(self, x, y)
+	for _, hotspot in ipairs(self.inspector_hotspots or {}) do
+		if x >= hotspot.left and x <= hotspot.right and y <= hotspot.top and y >= hotspot.bottom then
+			local width = math.max(hotspot.right - hotspot.left, 1)
+			if hotspot.left_command ~= nil and x <= hotspot.left + width * 0.34 then
+				return hotspot.left_command
+			end
+			if hotspot.right_command ~= nil and x >= hotspot.right - width * 0.34 then
+				return hotspot.right_command
+			end
+			return hotspot.click_command or hotspot.right_command or hotspot.left_command
+		end
+	end
+	return nil
+end
+
 local function render_side_buttons(self)
 	if self.layout == nil then
 		return
@@ -1070,27 +1349,32 @@ local function render_side_buttons(self)
 
 	local used_buttons = 0
 	local used_fields = 0
-	local rail_x = self.layout.left_x + 12
-	local rail_y = self.layout.left_y - 10
-	local rail_button_w = self.layout.left_w - 24
-	local rail_button_h = 30
-
-	for index, button in ipairs(GRAPH_TOOL_BUTTONS) do
-		local y = rail_y - (index - 1) * (rail_button_h + BUTTON_GAP)
-		used_buttons = used_buttons + 1
-		local view = ensure_button_view(self, self.side_button_views, used_buttons, true)
-		view.key = button.key
-		view.command = button.command
-		set_button_view_layout(view, rail_x, y, rail_button_w, rail_button_h, button.label, button.scale or 0.24, self.active_tool == button.key, true)
-	end
-
 	local panel_x = self.layout.right_x + 18
 	local panel_y = self.layout.action_y
 	local panel_button_w = self.layout.right_w - 36
 	local list_x = panel_x
 	local list_y = panel_y
-	if self.active_side_tab == "edit" or self.active_side_tab == "file" then
-		local buttons_list = self.active_side_tab == "edit" and EDIT_ACTION_BUTTONS or FILE_ACTION_BUTTONS
+	trim_extra_tool_glyph_views(self, 0)
+
+	if self.active_side_tab == "graph" then
+		local cols = 4
+		local button_w = math.floor((panel_button_w - BUTTON_GAP * (cols - 1)) / cols)
+		local button_h = 34
+		for index, button in ipairs(GRAPH_TOOL_BUTTONS) do
+			local col = (index - 1) % cols
+			local row = math.floor((index - 1) / cols)
+			local x = list_x + col * (button_w + BUTTON_GAP)
+			local y = list_y - row * (button_h + BUTTON_GAP)
+			used_buttons = used_buttons + 1
+			local view = ensure_button_view(self, self.side_button_views, used_buttons, true)
+			view.key = button.key
+			view.command = button.command
+			set_button_view_layout(view, x, y, button_w, button_h, button.label, button.scale or 0.24, self.active_tool == button.key, true)
+			set_tool_glyph_layout(ensure_tool_glyph_view(self, index), x, y, button_w, button_h, button.key, self.active_tool == button.key)
+		end
+		trim_extra_tool_glyph_views(self, #GRAPH_TOOL_BUTTONS)
+	elseif self.active_side_tab == "edit" then
+		local buttons_list = EDIT_ACTION_BUTTONS
 		for _, button in ipairs(buttons_list) do
 			used_buttons = used_buttons + 1
 			local view = ensure_button_view(self, self.side_button_views, used_buttons, false)
@@ -1098,6 +1382,42 @@ local function render_side_buttons(self)
 			view.command = button.command
 			set_button_view_layout(view, list_x, list_y, panel_button_w, 26, button.label, 0.46, false, button.command ~= nil)
 			list_y = list_y - 30
+		end
+	elseif self.active_side_tab == "file" then
+		for _, button in ipairs(FILE_ACTION_BUTTONS) do
+			used_buttons = used_buttons + 1
+			local view = ensure_button_view(self, self.side_button_views, used_buttons, false)
+			view.key = button.key
+			view.command = button.command
+			set_button_view_layout(view, list_x, list_y, panel_button_w, 26, button.label, 0.44, false, true)
+			list_y = list_y - 30
+		end
+
+		list_y = list_y - 6
+
+		local library = self.diagram_library or {}
+		local library_button_h = 28
+		local library_button_w = math.floor((panel_button_w - BUTTON_GAP) / 2)
+		for index, entry in ipairs(library) do
+			local col = (index - 1) % 2
+			local row = math.floor((index - 1) / 2)
+			local x = list_x + col * (library_button_w + BUTTON_GAP)
+			local y = list_y - row * (library_button_h + BUTTON_GAP)
+			used_buttons = used_buttons + 1
+			local view = ensure_button_view(self, self.side_button_views, used_buttons, true)
+			view.key = entry.key
+			view.command = "load_diagram:" .. tostring(entry.key)
+			set_button_view_layout(
+				view,
+				x,
+				y,
+				library_button_w,
+				library_button_h,
+				tostring(entry.label or entry.key),
+				0.4,
+				entry.selected == true or self.active_diagram_key == entry.key,
+				true
+			)
 		end
 	elseif self.active_side_tab == "run" then
 		for _, button in ipairs(RUN_ACTION_BUTTONS) do
@@ -1108,14 +1428,39 @@ local function render_side_buttons(self)
 			set_button_view_layout(view, list_x, list_y, panel_button_w, 26, button.label, 0.46, false, true)
 			list_y = list_y - 30
 		end
-		for _, field in ipairs({
-			{ label = "Runs", value = "100" },
-			{ label = "Visible Runs", value = "25" },
-		}) do
+
+		local run_fields = {
+			{
+				label = "Runs",
+				value = tostring(self.number_of_runs or 100),
+				minus = "runs_delta:-10",
+				plus = "runs_delta:10",
+			},
+			{
+				label = "Visible Runs",
+				value = tostring(self.visible_runs or 25),
+				minus = "visible_runs_delta:-5",
+				plus = "visible_runs_delta:5",
+			},
+		}
+		for _, field in ipairs(run_fields) do
 			used_fields = used_fields + 1
 			local view = ensure_field_view(self, self.side_field_views, used_fields)
-			set_field_view_layout(view, self.layout.right_x + 18, list_y, self.layout.right_x + 154, self.layout.right_w - 172, field.label, field.value)
-			list_y = list_y - 30
+			set_field_view_layout(view, self.layout.right_x + 18, list_y, self.layout.right_x + 108, 78, field.label, field.value)
+
+			used_buttons = used_buttons + 1
+			local minus_view = ensure_button_view(self, self.side_button_views, used_buttons, false)
+			minus_view.key = field.label .. "_minus"
+			minus_view.command = field.minus
+			set_button_view_layout(minus_view, self.layout.right_x + self.layout.right_w - 86, list_y + 2, 28, 24, "-", 0.6, false, true)
+
+			used_buttons = used_buttons + 1
+			local plus_view = ensure_button_view(self, self.side_button_views, used_buttons, false)
+			plus_view.key = field.label .. "_plus"
+			plus_view.command = field.plus
+			set_button_view_layout(plus_view, self.layout.right_x + self.layout.right_w - 48, list_y + 2, 28, 24, "+", 0.6, false, true)
+
+			list_y = list_y - 34
 		end
 	end
 
@@ -1196,7 +1541,7 @@ local function render_distribution(self, distribution)
 
 	if #bins == 0 then
 		trim_extra_views(self.distribution_bar_views, 0)
-		gui.set_text(self.distribution_title_text, "Batch Distribution")
+		gui.set_text(self.distribution_title_text, "Nodes at Step")
 		return
 	end
 
@@ -1229,12 +1574,12 @@ local function render_distribution(self, distribution)
 	end
 
 	trim_extra_views(self.distribution_bar_views, used)
-	gui.set_text(self.distribution_title_text, "Batch Distribution")
+	gui.set_text(self.distribution_title_text, "Nodes at Step")
 end
 
 local function render_accuracy(self, text)
-	gui.set_text(self.accuracy_label_text, "Indicators")
-	gui.set_text(self.accuracy_text, text or "Run batch to compute indicators and percentile spread.")
+	gui.set_text(self.accuracy_label_text, "Accuracy Indicator")
+	gui.set_text(self.accuracy_text, text or "Run batch to estimate mean, median, interval spread and most likely outcome.")
 end
 
 local function action_point_x(action)
@@ -1257,6 +1602,8 @@ function init(self)
 	self.side_field_views = {}
 	self.top_button_views = {}
 	self.inspector_field_views = {}
+	self.tool_glyph_views = {}
+	self.inspector_hotspots = {}
 	self.camera_x = 0
 	self.camera_y = 0
 	self.camera_zoom = 1
@@ -1268,12 +1615,20 @@ function init(self)
 	self.edges_payload = {}
 	self.chart_payload = {}
 	self.distribution_payload = {}
-	self.inspector_payload = {}
+	self.inspector_payload = {
+		title = "Selection",
+		status_line = "",
+		fields = {},
+	}
+	self.diagram_library = {}
+	self.active_diagram_key = nil
 	self.last_gui_w = 0
 	self.last_gui_h = 0
 	self.active_side_tab = "graph"
 	self.active_tool = "select"
 	self.autoplay = false
+	self.number_of_runs = 100
+	self.visible_runs = 25
 
 	self.canvas_bg = gui.get_node("canvas_bg")
 	self.canvas_tint = gui.get_node("canvas_tint")
@@ -1294,6 +1649,7 @@ function init(self)
 
 	self.edge_template = gui.get_node("edge_template")
 	self.grid_line_template = gui.get_node("grid_line_template")
+	self.node_shape_template = gui.get_node("node_shape_template")
 	self.node_box_template = gui.get_node("node_box_template")
 	self.node_title_template = gui.get_node("node_title_template")
 	self.node_value_template = gui.get_node("node_value_template")
@@ -1319,8 +1675,8 @@ function init(self)
 	gui.set_text(self.hud_text, "Local Defold simulation editor")
 	gui.set_text(self.status_text, "")
 	gui.set_text(self.accuracy_label_text, "")
-	gui.set_text(self.accuracy_text, "Run batch to compute indicators and percentile spread.")
-	gui.set_text(self.left_help_text, "Design      Predict      Balance      Integrate")
+	gui.set_text(self.accuracy_text, "Run batch to estimate mean, median, interval spread and most likely outcome.")
+	gui.set_text(self.left_help_text, "Legacy Offline Editor")
 	gui.set_text(self.tools_bar_text, "")
 	gui.set_text(self.footer_text, "")
 	gui.set_text(self.status_title_text, "Selection")
@@ -1344,7 +1700,11 @@ function on_message(self, message_id, message, sender)
 		self.camera_zoom = message.camera_zoom or self.camera_zoom
 		self.active_tool = message.active_tool or self.active_tool
 		self.autoplay = message.autoplay == true
-		self.inspector_payload = message.inspector or self.inspector_payload
+		self.number_of_runs = tonumber(message.number_of_runs) or self.number_of_runs
+		self.visible_runs = tonumber(message.visible_runs) or self.visible_runs
+		if message.active_diagram_key ~= nil then
+			self.active_diagram_key = message.active_diagram_key
+		end
 		render_frame_chrome(self)
 		render_top_run_button(self)
 		render_side_tabs(self)
@@ -1355,6 +1715,48 @@ function on_message(self, message_id, message, sender)
 		render_nodes(self, self.nodes_payload)
 		if message.hud ~= nil then
 			gui.set_text(self.hud_text, message.hud)
+		end
+	elseif message_id == MSG_EDITOR_RENDER_INSPECTOR then
+		if message.reset or self.inspector_payload == nil then
+			self.inspector_payload = {
+				title = message.title or "Selection",
+				status_line = message.status_line or "",
+				fields = {},
+			}
+		end
+
+		if message.title ~= nil then
+			self.inspector_payload.title = message.title
+		end
+		if message.status_line ~= nil then
+			self.inspector_payload.status_line = message.status_line
+		end
+
+		for _, field in ipairs(message.items or {}) do
+			self.inspector_payload.fields[#self.inspector_payload.fields + 1] = field
+		end
+
+		if message.done then
+			render_inspector(self)
+		end
+	elseif message_id == MSG_EDITOR_RENDER_LIBRARY then
+		if message.reset then
+			self.diagram_library = {}
+		end
+
+		for _, entry in ipairs(message.items or {}) do
+			self.diagram_library[#self.diagram_library + 1] = entry
+		end
+
+		if message.done then
+			self.active_diagram_key = nil
+			for _, entry in ipairs(self.diagram_library) do
+				if entry.selected == true then
+					self.active_diagram_key = entry.key
+					break
+				end
+			end
+			render_side_buttons(self)
 		end
 	elseif message_id == MSG_EDITOR_RENDER_NODES then
 		if message.reset then
@@ -1446,6 +1848,12 @@ function on_input(self, action_id, action)
 				return true
 			end
 		end
+
+		local inspector_command = pick_inspector_command(self, x, y)
+		if inspector_command ~= nil then
+			send_command(inspector_command)
+			return true
+		end
 	end
 
 	if is_left_button(action_id) then
@@ -1495,20 +1903,104 @@ function on_input(self, action_id, action)
 		send_command("step")
 		return true
 	end
+	if action_id == HASH_KEY_1 and action.pressed then
+		self.active_side_tab = "graph"
+		render_side_tabs(self)
+		render_side_buttons(self)
+		render_inspector(self)
+		return true
+	end
+	if action_id == HASH_KEY_2 and action.pressed then
+		self.active_side_tab = "edit"
+		render_side_tabs(self)
+		render_side_buttons(self)
+		render_inspector(self)
+		return true
+	end
+	if action_id == HASH_KEY_3 and action.pressed then
+		self.active_side_tab = "file"
+		render_side_tabs(self)
+		render_side_buttons(self)
+		render_inspector(self)
+		return true
+	end
+	if action_id == HASH_KEY_4 and action.pressed then
+		self.active_side_tab = "run"
+		render_side_tabs(self)
+		render_side_buttons(self)
+		render_inspector(self)
+		return true
+	end
 	if action_id == HASH_KEY_ENTER and action.pressed then
-		send_command("toggle_autoplay")
+		send_command("quick_run")
+		return true
+	end
+	if action_id == HASH_KEY_Q and action.pressed then
+		send_command("tool:select")
+		return true
+	end
+	if action_id == HASH_KEY_W and action.pressed then
+		send_command("tool:text")
+		return true
+	end
+	if action_id == HASH_KEY_X and action.pressed then
+		send_command("tool:group")
+		return true
+	end
+	if action_id == HASH_KEY_H and action.pressed then
+		send_command("tool:chart")
+		return true
+	end
+	if action_id == HASH_KEY_J and action.pressed then
+		send_command("tool:pool")
+		return true
+	end
+	if action_id == HASH_KEY_K and action.pressed then
+		send_command("tool:gate")
+		return true
+	end
+	if action_id == HASH_KEY_L and action.pressed then
+		send_command("tool:resource")
+		return true
+	end
+	if action_id == HASH_KEY_F and action.pressed then
+		send_command("tool:state")
+		return true
+	end
+	if action_id == HASH_KEY_A and action.pressed then
+		send_command("select_all")
 		return true
 	end
 	if action_id == HASH_KEY_B and action.pressed then
-		send_command("batch")
+		send_command("multiple_runs")
+		return true
+	end
+	if action_id == HASH_KEY_C and action.pressed then
+		send_command("copy")
+		return true
+	end
+	if action_id == HASH_KEY_E and action.pressed then
+		send_command("export_selection")
+		return true
+	end
+	if action_id == HASH_KEY_G and action.pressed then
+		send_command("save_svg")
 		return true
 	end
 	if action_id == HASH_KEY_I and action.pressed then
 		send_command("import")
 		return true
 	end
+	if action_id == HASH_KEY_M and action.pressed then
+		send_command("zoom_fit")
+		return true
+	end
 	if action_id == HASH_KEY_N and action.pressed then
-		send_command("add_pool")
+		send_command("new_blank")
+		return true
+	end
+	if action_id == HASH_KEY_O and action.pressed then
+		send_command("load")
 		return true
 	end
 	if action_id == HASH_KEY_P and action.pressed then
@@ -1516,23 +2008,7 @@ function on_input(self, action_id, action)
 		return true
 	end
 	if action_id == HASH_KEY_S and action.pressed then
-		send_command("add_source")
-		return true
-	end
-	if action_id == HASH_KEY_G and action.pressed then
-		send_command("add_gate")
-		return true
-	end
-	if action_id == HASH_KEY_D and action.pressed then
-		send_command("add_drain")
-		return true
-	end
-	if action_id == HASH_KEY_Q and action.pressed then
-		send_command("add_queue")
-		return true
-	end
-	if action_id == HASH_KEY_E and action.pressed then
-		send_command("add_delay")
+		send_command("save")
 		return true
 	end
 	if action_id == HASH_KEY_U and action.pressed then
@@ -1540,11 +2016,15 @@ function on_input(self, action_id, action)
 		return true
 	end
 	if action_id == HASH_KEY_V and action.pressed then
-		send_command("add_register")
+		send_command("paste")
 		return true
 	end
-	if action_id == HASH_KEY_C and action.pressed then
-		send_command("arm_link")
+	if action_id == HASH_KEY_Y and action.pressed then
+		send_command("redo")
+		return true
+	end
+	if action_id == HASH_KEY_Z and action.pressed then
+		send_command("undo")
 		return true
 	end
 	if (action_id == HASH_KEY_DELETE or action_id == HASH_KEY_BACKSPACE) and action.pressed then
@@ -1552,15 +2032,7 @@ function on_input(self, action_id, action)
 		return true
 	end
 	if action_id == HASH_KEY_R and action.pressed then
-		send_command("reset")
-		return true
-	end
-	if action_id == HASH_KEY_L and action.pressed then
-		send_command("load")
-		return true
-	end
-	if action_id == HASH_KEY_K and action.pressed then
-		send_command("save")
+		send_command("toggle_autoplay")
 		return true
 	end
 	if action_id == HASH_KEY_T and action.pressed then

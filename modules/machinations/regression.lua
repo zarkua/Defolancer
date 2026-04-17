@@ -1,5 +1,6 @@
 local Engine = require("modules.machinations.engine")
 local Autogen = require("modules.machinations.autogen")
+local EditorActions = require("modules.machinations.editor_actions")
 local LegacyXml = require("modules.machinations.legacy_xml")
 local types = require("modules.machinations.types")
 
@@ -672,6 +673,107 @@ local function end_condition_node_case()
 	}
 end
 
+local function artificial_player_fire_case()
+	local diagram = {
+		name = "reg_ap_fire",
+		play_mode = types.PLAY_MODE.BATCH,
+		nodes = {
+			{
+				id = "director",
+				type = types.NODE.ARTIFICIAL_PLAYER,
+				trigger_mode = types.TRIGGER_MODE.AUTOMATIC,
+				initial_resources = 0,
+				rate = 1,
+				data = {
+					legacy_caption = "Director",
+					ap_actions_per_turn = 1,
+					ap_script = "fire(source)",
+				},
+			},
+			{
+				id = "source",
+				type = types.NODE.SOURCE,
+				trigger_mode = types.TRIGGER_MODE.INTERACTIVE,
+				initial_resources = 2,
+				rate = 1,
+				data = {
+					finite_source = true,
+					legacy_caption = "source",
+				},
+			},
+			{
+				id = "sink",
+				type = types.NODE.DRAIN,
+				trigger_mode = types.TRIGGER_MODE.PASSIVE,
+				initial_resources = 0,
+				rate = 1,
+				data = {
+					legacy_caption = "sink",
+				},
+			},
+		},
+		connections = {
+			{ id = "src_sink", from = "source", to = "sink", type = types.CONNECTION.RESOURCE, amount = 1 },
+		},
+		["end"] = { max_ticks = 3, stop_when_idle = false },
+	}
+
+	return {
+		name = "artificial_player_fire",
+		diagram = diagram,
+		check = function(state)
+			Engine.step(state)
+			if state.metrics.drained_total ~= 1 then
+				return false, "artificial player should fire interactive source and drain 1 resource"
+			end
+			local director = state.nodes.director
+			if director == nil or (director.data and director.data.ap_actions_executed or 0) < 1 then
+				return false, "artificial player should record at least one executed action"
+			end
+			return true, "ok"
+		end,
+	}
+end
+
+local function artificial_player_import_case()
+	local xml_text = [[
+<graph version="v4.05" name="AP Import" interval="1" timeMode="turnBased">
+  <node symbol="ArtificialPlayer" x="120" y="140" color="Black" caption="Director" activationMode="automatic" pullMode="push any" actionsPerTurn="2">fire(source)</node>
+  <node symbol="Source" x="280" y="140" color="Black" caption="source" activationMode="interactive" pullMode="push any" />
+</graph>
+]]
+
+	return {
+		name = "artificial_player_import",
+		diagram = nil,
+		check = function(_)
+			local diagram, err = LegacyXml.decode_diagram_xml(xml_text)
+			if diagram == nil then
+				return false, "legacy xml decode failed: " .. tostring(err)
+			end
+
+			local director = nil
+			for _, node in ipairs(diagram.nodes or {}) do
+				if node.type == types.NODE.ARTIFICIAL_PLAYER then
+					director = node
+					break
+				end
+			end
+
+			if director == nil then
+				return false, "expected ArtificialPlayer to import as runtime node"
+			end
+			if (director.data and director.data.ap_script or "") ~= "fire(source)" then
+				return false, "expected AP script to be preserved on import"
+			end
+			if math.floor(tonumber(director.data and director.data.ap_actions_per_turn) or 0) ~= 2 then
+				return false, "expected actionsPerTurn=2 on imported AP"
+			end
+			return true, "ok"
+		end,
+	}
+end
+
 local function autogen_smoke_case()
 	return {
 		name = "autogen_smoke",
@@ -707,6 +809,347 @@ local function autogen_smoke_case()
 	}
 end
 
+local function editor_copy_paste_case()
+	local diagram = {
+		name = "editor_copy_paste",
+		author = "regression",
+		nodes = {
+			{ id = "source", type = types.NODE.SOURCE, trigger_mode = types.TRIGGER_MODE.AUTOMATIC, initial_resources = 3, rate = 1, data = { finite_source = true } },
+			{ id = "buffer", type = types.NODE.POOL, trigger_mode = types.TRIGGER_MODE.PASSIVE, initial_resources = 0, rate = 1 },
+			{ id = "sink", type = types.NODE.DRAIN, trigger_mode = types.TRIGGER_MODE.PASSIVE, initial_resources = 0, rate = 1 },
+		},
+		connections = {
+			{ id = "a", from = "source", to = "buffer", type = types.CONNECTION.RESOURCE, amount = 1 },
+			{ id = "b", from = "buffer", to = "sink", type = types.CONNECTION.RESOURCE, amount = 1 },
+		},
+	}
+	local positions = {
+		source = { x = -120, y = 40 },
+		buffer = { x = 0, y = 40 },
+		sink = { x = 120, y = 40 },
+	}
+
+	return {
+		name = "editor_copy_paste",
+		diagram = nil,
+		check = function(_)
+			local clipboard = EditorActions.copy_selection(diagram, positions, { "source", "buffer" })
+			if clipboard == nil or clipboard.diagram == nil then
+				return false, "copy_selection should return clipboard diagram"
+			end
+			if #(clipboard.diagram.nodes or {}) ~= 2 then
+				return false, "clipboard should contain 2 selected nodes"
+			end
+			if #(clipboard.diagram.connections or {}) ~= 1 then
+				return false, "clipboard should contain 1 internal connection"
+			end
+
+			local pasted_diagram, pasted_positions, pasted_ids, id_map = EditorActions.paste_selection(
+				diagram,
+				positions,
+				clipboard,
+				{ offset_x = 20, offset_y = 30 }
+			)
+			if #(pasted_diagram.nodes or {}) ~= 5 then
+				return false, "paste_selection should append 2 nodes"
+			end
+			if #(pasted_diagram.connections or {}) ~= 3 then
+				return false, "paste_selection should append 1 connection"
+			end
+			if #(pasted_ids or {}) ~= 2 then
+				return false, "paste_selection should return 2 pasted ids"
+			end
+			local pasted_source_id = id_map and id_map.source or nil
+			local pasted_buffer_id = id_map and id_map.buffer or nil
+			if pasted_source_id == nil or pasted_buffer_id == nil then
+				return false, "paste_selection should return source/buffer id remap"
+			end
+			local pasted_source_pos = pasted_positions[pasted_source_id]
+			local pasted_buffer_pos = pasted_positions[pasted_buffer_id]
+			if pasted_source_pos == nil or pasted_buffer_pos == nil then
+				return false, "paste_selection should return positions for pasted nodes"
+			end
+			if pasted_source_pos.x ~= positions.source.x + 20 or pasted_source_pos.y ~= positions.source.y + 30 then
+				return false, "pasted source position should be offset"
+			end
+			if pasted_buffer_pos.x ~= positions.buffer.x + 20 or pasted_buffer_pos.y ~= positions.buffer.y + 30 then
+				return false, "pasted buffer position should be offset"
+			end
+			return true, "ok"
+		end,
+	}
+end
+
+local function editor_visual_copy_paste_case()
+	local diagram = {
+		name = "editor_visual_copy_paste",
+		author = "regression",
+		nodes = {
+			{ id = "source", type = types.NODE.SOURCE, trigger_mode = types.TRIGGER_MODE.AUTOMATIC, initial_resources = 3, rate = 1, data = { finite_source = true } },
+			{ id = "sink", type = types.NODE.DRAIN, trigger_mode = types.TRIGGER_MODE.PASSIVE, initial_resources = 0, rate = 1 },
+		},
+		connections = {
+			{ id = "flow", from = "source", to = "sink", type = types.CONNECTION.RESOURCE, amount = 1 },
+		},
+		legacy_visual_nodes = {
+			{ id = "label", symbol = "TextLabel", caption = "Loot", x = 120, y = 80, width = 96, height = 28 },
+			{ id = "group", symbol = "GroupBox", caption = "Frame", x = 40, y = 220, width = 220, height = 120 },
+		},
+		legacy_visual_connections = {
+			{ id = "visual_link", from = "label", to = "sink", label = "note", points = {} },
+		},
+	}
+	local positions = {
+		source = { x = 40, y = 120 },
+		sink = { x = 240, y = 120 },
+	}
+
+	return {
+		name = "editor_visual_copy_paste",
+		diagram = nil,
+		check = function(_)
+			local selected_ids = EditorActions.select_all(diagram)
+			if #selected_ids ~= 4 then
+				return false, "select_all should include 2 runtime and 2 visual nodes"
+			end
+
+			local clipboard = EditorActions.copy_selection(diagram, positions, { "label", "group" })
+			if clipboard == nil or clipboard.diagram == nil then
+				return false, "copy_selection should return clipboard for visual nodes"
+			end
+			if #(clipboard.diagram.legacy_visual_nodes or {}) ~= 2 then
+				return false, "clipboard should contain 2 visual nodes"
+			end
+
+			local pasted_diagram, _, pasted_ids, id_map = EditorActions.paste_selection(
+				diagram,
+				positions,
+				clipboard,
+				{ offset_x = 24, offset_y = 18 }
+			)
+			if #(pasted_diagram.legacy_visual_nodes or {}) ~= 4 then
+				return false, "paste_selection should append copied visual nodes"
+			end
+			if #(pasted_ids or {}) ~= 2 then
+				return false, "paste_selection should return pasted visual ids"
+			end
+			local pasted_label_id = id_map and id_map.label or nil
+			if pasted_label_id == nil then
+				return false, "visual paste should remap label id"
+			end
+
+			local pasted_label = nil
+			for _, visual_node in ipairs(pasted_diagram.legacy_visual_nodes or {}) do
+				if visual_node.id == pasted_label_id then
+					pasted_label = visual_node
+					break
+				end
+			end
+			if pasted_label == nil then
+				return false, "pasted visual label missing"
+			end
+			if pasted_label.x ~= 144 or pasted_label.y ~= 98 then
+				return false, "visual label should be offset by paste delta"
+			end
+			return true, "ok"
+		end,
+	}
+end
+
+local function editor_state_connection_case()
+	local diagram = {
+		name = "editor_state_connection",
+		author = "regression",
+		nodes = {
+			{ id = "source", type = types.NODE.SOURCE, trigger_mode = types.TRIGGER_MODE.AUTOMATIC, initial_resources = 3, rate = 1, data = { finite_source = true } },
+			{ id = "target", type = types.NODE.END_CONDITION, trigger_mode = types.TRIGGER_MODE.PASSIVE, initial_resources = 0, rate = 1, enabled = false },
+		},
+		connections = {},
+	}
+
+	return {
+		name = "editor_state_connection",
+		diagram = nil,
+		check = function(_)
+			local added, connection_id = EditorActions.append_connection(diagram, "source", "target", types.CONNECTION.STATE, {
+				action = types.STATE_ACTION.SET_ENABLED,
+				source_field = types.STATE_FIELD.OUTGOING,
+				comparator = types.COMPARATOR.GREATER_OR_EQUAL,
+				value = 1,
+				scale = 1,
+				target_enabled = true,
+			})
+			if not added then
+				return false, "append_connection should add a state connection"
+			end
+			if connection_id == nil then
+				return false, "append_connection should return the new state connection id"
+			end
+			if #(diagram.connections or {}) ~= 1 then
+				return false, "diagram should contain one state connection"
+			end
+			local connection = diagram.connections[1]
+			if connection.type ~= types.CONNECTION.STATE then
+				return false, "connection type should be state"
+			end
+			local duplicate_added = EditorActions.append_connection(diagram, "source", "target", types.CONNECTION.STATE, {})
+			if duplicate_added ~= false then
+				return false, "duplicate state connection should be rejected"
+			end
+			return true, "ok"
+		end,
+	}
+end
+
+local function editor_history_case()
+	local base_diagram = {
+		name = "editor_history",
+		nodes = {
+			{ id = "a", type = types.NODE.POOL, trigger_mode = types.TRIGGER_MODE.PASSIVE, initial_resources = 1, rate = 1 },
+		},
+		connections = {},
+	}
+	local base_positions = {
+		a = { x = 0, y = 0 },
+	}
+
+	return {
+		name = "editor_history",
+		diagram = nil,
+		check = function(_)
+			local history = EditorActions.new_history(
+				EditorActions.snapshot(base_diagram, base_positions, { "a" }, "a", { x = 0, y = 0, zoom = 1 })
+			)
+			local next_diagram = EditorActions.clone_table(base_diagram)
+			next_diagram.nodes[1].initial_resources = 4
+			history = EditorActions.push_history(
+				history,
+				EditorActions.snapshot(next_diagram, base_positions, { "a" }, "a", { x = 20, y = 10, zoom = 1.2 })
+			)
+			local undo_snapshot
+			history, undo_snapshot = EditorActions.undo_history(history)
+			if undo_snapshot == nil or undo_snapshot.diagram.nodes[1].initial_resources ~= 1 then
+				return false, "undo_history should restore first snapshot"
+			end
+			local redo_snapshot
+			history, redo_snapshot = EditorActions.redo_history(history)
+			if redo_snapshot == nil or redo_snapshot.diagram.nodes[1].initial_resources ~= 4 then
+				return false, "redo_history should restore latest snapshot"
+			end
+			return true, "ok"
+		end,
+	}
+end
+
+local function editor_export_case()
+	local diagram = {
+		name = "editor_export",
+		author = "regression",
+		width = 600,
+		height = 560,
+		nodes = {
+			{ id = "source", type = types.NODE.SOURCE, trigger_mode = types.TRIGGER_MODE.AUTOMATIC, initial_resources = 2, rate = 1, data = { finite_source = true } },
+			{ id = "buffer", type = types.NODE.POOL, trigger_mode = types.TRIGGER_MODE.PASSIVE, initial_resources = 0, rate = 1 },
+			{ id = "sink", type = types.NODE.DRAIN, trigger_mode = types.TRIGGER_MODE.PASSIVE, initial_resources = 0, rate = 1 },
+		},
+		connections = {
+			{ id = "ab", from = "source", to = "buffer", type = types.CONNECTION.RESOURCE, amount = 1 },
+			{ id = "bc", from = "buffer", to = "sink", type = types.CONNECTION.RESOURCE, amount = 1 },
+		},
+	}
+	local positions = {
+		source = { x = 120, y = 240 },
+		buffer = { x = 260, y = 240 },
+		sink = { x = 400, y = 240 },
+	}
+
+	return {
+		name = "editor_export",
+		diagram = nil,
+		check = function(_)
+			local selection = EditorActions.export_selection(diagram, positions, { "source", "buffer" })
+			if #(selection.nodes or {}) ~= 2 then
+				return false, "export_selection should keep 2 nodes"
+			end
+			if #(selection.connections or {}) ~= 1 then
+				return false, "export_selection should keep 1 internal connection"
+			end
+			if selection.editor_positions == nil or selection.editor_positions.source == nil then
+				return false, "export_selection should include editor positions"
+			end
+			local svg = EditorActions.build_svg(diagram, positions)
+			if type(svg) ~= "string" or not string.find(svg, "<svg", 1, true) then
+				return false, "build_svg should return svg markup"
+			end
+			if not string.find(svg, "editor_export", 1, true) then
+				return false, "svg should include graph title"
+			end
+			if not string.find(svg, "source", 1, true) then
+				return false, "svg should include node labels"
+			end
+			return true, "ok"
+		end,
+	}
+end
+
+local function editor_run_modes_case()
+	local diagram = {
+		name = "editor_run_modes",
+		play_mode = types.PLAY_MODE.BATCH,
+		nodes = {
+			{
+				id = "source",
+				type = types.NODE.SOURCE,
+				trigger_mode = types.TRIGGER_MODE.AUTOMATIC,
+				initial_resources = 3,
+				rate = 1,
+				data = { finite_source = true },
+			},
+			{
+				id = "sink",
+				type = types.NODE.DRAIN,
+				trigger_mode = types.TRIGGER_MODE.PASSIVE,
+				initial_resources = 0,
+				rate = 1,
+			},
+		},
+		connections = {
+			{ id = "src_sink", from = "source", to = "sink", type = types.CONNECTION.RESOURCE, amount = 1 },
+		},
+		["end"] = { max_ticks = 8, stop_when_idle = true },
+	}
+
+	return {
+		name = "editor_run_modes",
+		diagram = nil,
+		check = function(_)
+			local quick_report = EditorActions.quick_run(diagram, {
+				seed = 13,
+				max_ticks = 8,
+			})
+			if quick_report == nil or quick_report.state == nil then
+				return false, "quick_run should return a stateful report"
+			end
+			if quick_report.state.ended ~= true then
+				return false, "quick_run should end finite source diagram"
+			end
+
+			local batch_report = EditorActions.multiple_runs(diagram, {
+				seed = 13,
+				runs = 8,
+				max_ticks = 8,
+			})
+			if batch_report == nil or #(batch_report.runs or {}) ~= 8 then
+				return false, "multiple_runs should produce 8 runs"
+			end
+			if batch_report.aggregates == nil or batch_report.aggregates.ticks == nil then
+				return false, "multiple_runs should include aggregate ticks"
+			end
+			return true, "ok"
+		end,
+	}
+end
+
 local function build_cases()
 	return {
 		delay_release_case(),
@@ -719,7 +1162,15 @@ local function build_cases()
 		gate_conditional_else_case(),
 		legacy_import_mapping_case(),
 		end_condition_node_case(),
+		artificial_player_fire_case(),
+		artificial_player_import_case(),
 		autogen_smoke_case(),
+		editor_copy_paste_case(),
+		editor_visual_copy_paste_case(),
+		editor_history_case(),
+		editor_export_case(),
+		editor_state_connection_case(),
+		editor_run_modes_case(),
 	}
 end
 
